@@ -1,0 +1,19 @@
+{
+    "bundles": {
+        "JsonRpcServer\\JsonRpcServerBundle": ["all"]
+    },
+    "copy-from-recipe": {
+        "config/packages/json_rpc_server.yaml": "%CONFIG_DIR%/packages/json_rpc_server.yaml",
+        "config/routes/json_rpc_server.yaml": "%CONFIG_DIR%/../routes/json_rpc_server.yaml"
+    },
+    "post-install-output": [
+        "<bg=blue;fg=white>                                                                </>",
+        "<bg=blue;fg=white>  JsonRpc Server — JSON-RPC 2.0 for Symfony is ready to use     </>",
+        "<bg=blue;fg=white>                                                                </>",
+        "",
+        "  <fg=green>•</> Routes: <fg=yellow>/rpc</>, <fg=yellow>/rpc/stream</>, MCP <fg=yellow>/mcp/*</>",
+        "  <fg=green>•</> Config: <fg=yellow>config/packages/json_rpc_server.yaml</>",
+        "  <fg=green>•</> Handlers: <fg=yellow>#[JsonRpcServer\\Attribute\\Method('name')]</> on invokable classes",
+        ""
+    ]
+}

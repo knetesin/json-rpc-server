@@ -1,0 +1,107 @@
+{% extends '@WebProfiler/Profiler/layout.html.twig' %}
+
+{% block page_title %}JSON-RPC{% endblock %}
+
+{% block menu %}
+    {% set call_count = collector.callCount %}
+    <span class="label {{ call_count > 0 ? '' : 'disabled' }} {{ collector.hasError ? 'label-status-red' : (call_count > 0 ? 'label-status-green' : '') }}">
+        <span class="icon">{{ source('@JsonRpcBundle/Resources/views/Collector/icon.svg') }}</span>
+        <strong>RPC</strong>
+        {% if call_count > 0 %}
+            <span class="count">
+                <span>{{ call_count }}</span>
+            </span>
+        {% endif %}
+    </span>
+{% endblock %}
+
+{% block toolbar %}
+    {% set call_count = collector.callCount %}
+    {% if call_count > 0 %}
+        {% set icon %}
+            {{ source('@JsonRpcBundle/Resources/views/Collector/icon.svg') }}
+            <span class="sf-toolbar-value">{{ call_count }}</span>
+            <span class="sf-toolbar-info-piece-additional-detail">
+                <span class="sf-toolbar-label">in</span>
+                <span class="sf-toolbar-value">{{ collector.totalDurationMs }} ms</span>
+            </span>
+        {% endset %}
+
+        {% set text %}
+            <div class="sf-toolbar-info-group">
+                <div class="sf-toolbar-info-piece">
+                    <b>JSON-RPC calls</b>
+                    <span class="sf-toolbar-status {{ collector.hasError ? 'sf-toolbar-status-red' : 'sf-toolbar-status-green' }}">{{ call_count }}</span>
+                </div>
+                <div class="sf-toolbar-info-piece">
+                    <b>Total time</b>
+                    <span>{{ collector.totalDurationMs }} ms</span>
+                </div>
+            </div>
+        {% endset %}
+
+        {{ include('@WebProfiler/Profiler/toolbar_item.html.twig', { link: profiler_url, status: collector.hasError ? 'error' : '' }) }}
+    {% endif %}
+{% endblock %}
+
+{% block panel %}
+    <h2>JSON-RPC calls</h2>
+
+    {% if collector.callCount == 0 %}
+        <div class="empty">
+            <p>No RPC methods were invoked during this request.</p>
+        </div>
+    {% else %}
+        <div class="metrics">
+            <div class="metric">
+                <span class="value">{{ collector.callCount }}</span>
+                <span class="label">Calls</span>
+            </div>
+            <div class="metric">
+                <span class="value">{{ collector.totalDurationMs }} ms</span>
+                <span class="label">Total time</span>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Method</th>
+                    <th>Handler</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Params</th>
+                    <th>Result / Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for call in collector.calls %}
+                    <tr>
+                        <td class="font-normal">{{ loop.index }}</td>
+                        <td><code>{{ call.method }}</code></td>
+                        <td><span class="text-muted">{{ call.handler|abbr_class }}</span></td>
+                        <td class="font-normal">{{ call.duration_ms }} ms{% if call.cache_hit %} <span class="badge badge-success">cache</span>{% endif %}</td>
+                        <td>
+                            {% if call.status == 'ok' %}
+                                <span class="badge badge-success">OK</span>
+                            {% elseif call.status == 'error' %}
+                                <span class="badge badge-danger">Error</span>
+                            {% else %}
+                                <span class="badge">{{ call.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ profiler_dump(call.params) }}</td>
+                        <td>
+                            {% if call.status == 'error' %}
+                                <span class="text-danger">{{ call.exception_class }}: {{ call.exception_message }}</span>
+                            {% else %}
+                                {{ profiler_dump(call.result) }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

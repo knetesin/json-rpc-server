@@ -1,0 +1,58 @@
+# GitHub Pages / Jekyll config.
+#
+# To publish: in the GitHub repository settings → Pages, set
+#   Source: Deploy from a branch
+#   Branch: main / /docs
+# GitHub builds and serves the site automatically on every push to main.
+#
+# Local preview:
+#   gem install bundler jekyll
+#   cd docs && bundle install && bundle exec jekyll serve
+
+title: JsonRpc Server Bundle
+description: >-
+  Modern JSON-RPC 2.0 server for Symfony — attributes, DTOs, MCP, streaming,
+  caching, rate limiting, and observability.
+url: "https://knetesin.github.io"
+baseurl: "/json-rpc-server"
+
+# Required by jekyll-theme-cayman / jekyll-github-metadata (GitHub Pages and CI).
+repository: knetesin/json-rpc-server
+
+# Built-in light theme that ships with GitHub Pages — no Gemfile needed for
+# the basic case. Swap for `just-the-docs` / `minimal-mistakes` if you want
+# nicer navigation; both are GitHub-Pages-supported themes.
+theme: jekyll-theme-cayman
+
+# `Gemfile`-free deps that GitHub Pages whitelists.
+plugins:
+  - jekyll-relative-links
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+relative_links:
+  enabled: true
+  collections: true
+
+# Render Markdown files only — skip Jekyll-internal directories and
+# non-content files so they don't end up at unexpected URLs.
+include:
+  - en
+  - ru
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - .bundle
+  - node_modules
+
+# Markdown rendering — GFM tables, fenced code blocks, syntax highlighting.
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  hard_wrap: false
+
+# Pretty URLs without `.html`.
+permalink: pretty

@@ -1,0 +1,41 @@
+# PHPStan 2.x configuration.
+#
+# Symfony / PHPUnit extensions auto-register via phpstan/extension-installer,
+# so we don't include them manually here.
+#
+# Two narrowly-scoped `ignoreErrors` entries are kept — each is documented
+# inline. Any future entries that don't fit one of the two existing rationales
+# should be discussed before being added: silent ignore lists rot fast.
+
+parameters:
+    level: 8
+
+    paths:
+        - src
+        - tests
+
+    excludePaths:
+        # MakerBundle skeletons are rendered at runtime with `extract()` —
+        # references to "undefined" variables inside them are defined by the
+        # caller. PHPStan can't follow that contract.
+        analyseAndScan:
+            - src/Resources/skeleton
+
+    # PHPStan 2.x: enable stricter analysis where it pays off.
+    treatPhpDocTypesAsCertain: true
+    reportUnmatchedIgnoredErrors: true
+
+    ignoreErrors:
+        # We deliberately read Validator constraints on method parameters
+        # (#[Rpc\Param]). Most constraints declare only
+        # TARGET_PROPERTY|METHOD; the compiler pass bypasses the attribute
+        # target check on purpose. See MethodCompilerPass::collectConstraints.
+        -
+            message: '#Attribute class Symfony\\Component\\Validator\\Constraints\\\w+ does not have the parameter target\.#'
+
+        # phpstan-symfony forces Serializer::denormalize() to be invariant
+        # over its $type argument. DateNormalizer deliberately returns null
+        # for null / empty-string input — the test asserts that null path.
+        -
+            message: '#assertNull\(\) with (JsonRpcServer\\Type\\Date|DateTimeImmutable) will always evaluate to false\.#'
+            path: tests/Unit/Serializer/DateNormalizerTest.php

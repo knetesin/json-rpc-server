@@ -1,0 +1,17 @@
+source "https://rubygems.org"
+
+# Use the `github-pages` gem so local previews match what GitHub Pages
+# actually builds on push (versions, plugins, and theme all pinned).
+gem "github-pages", group: :jekyll_plugins
+
+# Plugins enabled in _config.yml. github-pages already includes them, but
+# listing here makes `bundle install` resolve cleanly without warnings.
+group :jekyll_plugins do
+  gem "jekyll-relative-links"
+  gem "jekyll-seo-tag"
+  gem "jekyll-sitemap"
+end
+
+# Windows / JRuby compat — harmless on other platforms.
+gem "wdm", "~> 0.1", install_if: Gem.win_platform?
+gem "tzinfo-data", install_if: Gem.win_platform?

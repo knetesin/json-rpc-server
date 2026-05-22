@@ -1,0 +1,105 @@
+{
+    "name": "knetesin/json-rpc-server",
+    "description": "Modern JSON-RPC 2.0 server bundle for Symfony with DTOs, validation, streaming, MCP, caching, rate limiting, and built-in observability.",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "homepage": "https://github.com/knetesin/json-rpc-server",
+    "support": {
+        "issues": "https://github.com/knetesin/json-rpc-server/issues",
+        "source": "https://github.com/knetesin/json-rpc-server"
+    },
+    "keywords": [
+        "symfony",
+        "symfony-bundle",
+        "json-rpc",
+        "jsonrpc",
+        "rpc",
+        "mcp",
+        "dto",
+        "validation"
+    ],
+    "require": {
+        "php": ">=8.3",
+        "ext-json": "*",
+        "psr/cache": "^2.0 || ^3.0",
+        "psr/container": "^1.1 || ^2.0",
+        "psr/event-dispatcher": "^1.0",
+        "psr/log": "^1 || ^2 || ^3",
+        "symfony/config": "^7.0 || ^8.0",
+        "symfony/dependency-injection": "^7.0 || ^8.0",
+        "symfony/http-foundation": "^7.0 || ^8.0",
+        "symfony/http-kernel": "^7.0 || ^8.0",
+        "symfony/routing": "^7.0 || ^8.0",
+        "symfony/security-core": "^7.0 || ^8.0",
+        "symfony/serializer": "^7.0 || ^8.0",
+        "symfony/validator": "^7.0 || ^8.0"
+    },
+    "suggest": {
+        "symfony/security-bundle": "Role checks on RPC methods, authenticated Context user, and per-user rate limit / cache scopes",
+        "symfony/web-profiler-bundle": "Display RPC method calls in the Symfony Web Profiler toolbar and panel (requires kernel.debug)",
+        "symfony/rate-limiter": "Required only if any RPC method carries #[Rpc\\RateLimit]. The bundle fails the container build with a clear message if it's missing but referenced.",
+        "symfony/cache": "Required only for tag-aware cache invalidation (RpcCacheInvalidator::purgeMethod / purgeTags). Plain PSR-6 caching works without it; tag operations silently no-op.",
+        "symfony/maker-bundle": "Enables `bin/console make:rpc-method` to scaffold handler + optional DTO + optional test.",
+        "sentry/sentry-symfony": "Enables `json_rpc_server.sentry.enabled` — breadcrumbs, `rpc.method` tag, and optional child spans for every RPC call. The bridge subscriber is registered only when this package is installed.",
+        "open-telemetry/sdk": "Enables `json_rpc_server.opentelemetry.enabled` — vendor-neutral traces / metrics / W3C trace-context propagation for every RPC call (works with Jaeger, Datadog, Grafana Tempo, Honeycomb, AWS X-Ray, etc). The bridge subscriber is registered only when this package is installed.",
+        "symfony/http-client": "Required only if `json_rpc_server.parallel_batch.enabled` is true — the executor uses it for loopback fan-out of batch items to the worker pool. Without it, parallel batch is unavailable; sequential batch processing always works.",
+        "ext-apcu": "Recommended when `parallel_batch.budget_store: apcu` (the default) — gives the executor a host-wide concurrency budget shared across PHP-FPM workers, preventing pool exhaustion. Without APCu the budget degrades to no-op (per-batch cap still applies)."
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.13",
+        "open-telemetry/sdk": "^1.0 || ^2.0",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^11.5.23 || ^12.0",
+        "sentry/sentry-symfony": "^5.0 || ^6.0",
+        "symfony/cache": "^7.0 || ^8.0",
+        "symfony/http-client": "^7.0 || ^8.0",
+        "symfony/expression-language": "^7.0 || ^8.0",
+        "symfony/framework-bundle": "^7.0 || ^8.0",
+        "symfony/maker-bundle": "^1.50",
+        "symfony/rate-limiter": "^7.0 || ^8.0",
+        "symfony/security-bundle": "^7.0 || ^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "JsonRpcServer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "JsonRpcServer\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "phpstan/extension-installer": true,
+            "tbachert/spi": true
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpstan": "phpstan analyse -c phpstan.dist.neon",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix",
+        "check": [
+            "@cs-check",
+            "@phpstan",
+            "@test"
+        ]
+    },
+    "extra": {
+        "symfony": {
+            "require": "7.0|8.0",
+            "bundle": {
+                "JsonRpcServer\\JsonRpcServerBundle": ["all"]
+            }
+        },
+        "branch-alias": {
+            "dev-main": "1.0-dev"
+        }
+    },
+    "minimum-stability": "stable"
+}

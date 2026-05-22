@@ -1,0 +1,7 @@
+###> knetesin/json-rpc-server ###
+# https://github.com/knetesin/json-rpc-server#configuration
+# json_rpc_server:
+#     profiler:
+#         enabled: true   # Web Profiler panel (dev, requires symfony/web-profiler-bundle)
+json_rpc_server: ~
+###< knetesin/json-rpc-server ###
