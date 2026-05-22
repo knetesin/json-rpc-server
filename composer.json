@@ -81,6 +81,9 @@
     },
     "scripts": {
         "test": "phpunit",
+        "coverage": "phpunit --coverage-clover coverage.xml",
+        "coverage-html": "phpunit --coverage-html var/coverage-html",
+        "coverage-text": "phpunit --coverage-text",
         "phpstan": "phpstan analyse -c phpstan.dist.neon",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix",

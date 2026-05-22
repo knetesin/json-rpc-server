@@ -1,6 +1,7 @@
 # JsonRpc Server Bundle
 
 [![CI](https://github.com/knetesin/json-rpc-server/actions/workflows/ci.yml/badge.svg)](https://github.com/knetesin/json-rpc-server/actions)
+[![codecov](https://codecov.io/gh/knetesin/json-rpc-server/graph/badge.svg)](https://codecov.io/gh/knetesin/json-rpc-server)
 [![Latest Version](https://img.shields.io/packagist/v/knetesin/json-rpc-server.svg?style=flat-square)](https://packagist.org/packages/knetesin/json-rpc-server)
 [![Total Downloads](https://img.shields.io/packagist/dt/knetesin/json-rpc-server.svg?style=flat-square)](https://packagist.org/packages/knetesin/json-rpc-server)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
