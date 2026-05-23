@@ -67,17 +67,23 @@ bin/console debug:rpc --openrpc \
 }
 ```
 
-## Flattening параметров для DTO-методов
+## Flattening параметров
 
-Для метода с одним DTO, бандл вытаскивает каждое свойство конструктора в
-отдельный OpenRPC `params` entry. Это соответствует:
+OpenRPC `params` строятся из той же прекомпилированной JSON Schema, что и MCP
+`inputSchema` (на этапе сборки контейнера). Каждый **business**-ключ плоской
+схемы становится отдельным OpenRPC-параметром.
 
-- Тому, что клиенты реально шлют по проводу (`{"params": {"email": "...", "limit": 25}}`).
-- Тому, что ожидают SDK-генераторы (плоская сигнатура, не struct argument).
+Покрывает:
 
-Метод со скалярными `#[Rpc\Param]` параметрами эмитится так же — один entry
-на business-параметр. Server-side параметры (`Context`, `Request`,
-`RpcRequest`) убираются — они не часть публичного контракта.
+- **Один DTO** — поля конструктора (`email`, `limit`, …).
+- **DTO + scalar рядом** — поля DTO и `#[Rpc\Param]` / auto-promoted scalars
+  (`street`, `city`, `autoId`).
+- **Только scalars** — один entry на параметр.
+
+Server-side (`Context`, `Request`, `RpcRequest`) не попадают в контракт.
+
+Два DTO с общим top-level JSON-ключом отклоняются при сборке контейнера (как
+и при runtime resolution).
 
 ## Кастомные `x-` расширения
 
@@ -177,9 +183,13 @@ json_rpc_server:
 Schema builder покрывает PHP-типы + curated набор Validator-констрейнтов.
 Что не моделируется:
 
-- PHPDoc generics вроде `list<int>` — бандл не парсит PHPDoc; массивы
-  показываются как `{type: 'array'}` без `items`. Используйте DTO если нужна
-  типизация элементов массива.
+- **Массив DTO** — для `array` + PHPDoc `list<YourDto>`, `Foo[]` или
+  `array<int, YourDto>` в схеме есть вложенный `items` для `YourDto`. Нужен
+  тот же PHPDoc, что для Serializer (`phpstan/phpdoc-parser` и
+  `phpdocumentor/type-resolver` — зависимости бандла). Без PHPDoc — только
+  `{type: 'array'}`.
+- **Массив scalars** (`list<int>`, `string[]`, …) — пока `{type: 'array'}`
+  без `items`.
 - Кастомные Validator-констрейнты — мапятся только стандартные из
   `Symfony\Component\Validator\Constraints\*`. Кастомные проходят валидацию,
   но в schema не отображаются.

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Mcp;
 
 use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilderFactory;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\Priority;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\TeamRequest;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\UserRequest;
 use Knetesin\JsonRpcServerBundle\Type\Date;
 use PHPUnit\Framework\TestCase;
@@ -135,5 +137,24 @@ final class JsonSchemaBuilderTest extends TestCase
 
         $this->assertSame('integer', $schema['type']);
         $this->assertStringContainsString('milliseconds', $schema['description']);
+    }
+
+    public function testArrayOfDtoGetsItemsFromPhpDoc(): void
+    {
+        $builder = JsonSchemaBuilderFactory::create(datetimeFormat: 'iso8601');
+        $props = $builder->fromClass(TeamRequest::class)['properties'];
+
+        $this->assertSame('array', $props->members['type']);
+        $this->assertArrayHasKey('items', $props->members);
+        $this->assertSame('object', $props->members['items']['type']);
+        $this->assertObjectHasProperty('name', $props->members['items']['properties']);
+    }
+
+    public function testArrayOfDtoWithoutExtractorHasNoItems(): void
+    {
+        $props = $this->builder->fromClass(TeamRequest::class)['properties'];
+
+        $this->assertSame('array', $props->members['type']);
+        $this->assertArrayNotHasKey('items', $props->members);
     }
 }

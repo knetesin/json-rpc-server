@@ -66,17 +66,24 @@ bin/console debug:rpc --openrpc \
 }
 ```
 
-## Param flattening for DTO methods
+## Param flattening
 
-For a method that takes a single DTO, the bundle lifts each constructor
-property into its own OpenRPC `params` entry. This matches:
+OpenRPC `params` are derived from the same precomputed JSON Schema as MCP
+`inputSchema` (built at container compile time). Every **business** key in
+that flat schema becomes one OpenRPC parameter entry.
 
-- What clients actually send on the wire (`{"params": {"email": "...", "limit": 25}}`).
-- What SDK generators expect (a flat call signature, not a struct argument).
+This covers:
 
-A method that takes scalar `#[Rpc\Param]` parameters is emitted the same way —
-one entry per business param. Server-side params (`Context`, `Request`,
-`RpcRequest`) are stripped — they're not part of the public contract.
+- A **single DTO** — ctor properties (`email`, `limit`, …).
+- **DTO + scalar siblings** — DTO fields and `#[Rpc\Param]` / auto-promoted
+  scalars in one flat list (`street`, `city`, `autoId`).
+- **Scalars only** — one entry per parameter.
+
+Server-side params (`Context`, `Request`, `RpcRequest`) never appear — they are
+not part of the public contract.
+
+Two DTO parameters that would share a top-level JSON key are rejected at
+container build time (same rule as runtime resolution).
 
 ## Custom `x-` extensions
 
@@ -176,9 +183,13 @@ This is the recommended default.
 The schema builder covers PHP types + a curated Validator constraint set.
 Things not modeled:
 
-- PHPDoc generics like `list<int>` — the bundle doesn't parse PHPDoc; arrays
-  show up as `{type: 'array'}` without `items`. Use a DTO if you need
-  array-element typing.
+- **Array of DTOs** — when a constructor parameter is `array` and PHPDoc
+  advertises `list<YourDto>`, `Foo[]`, or `array<int, YourDto>`, the schema
+  includes nested `items` for `YourDto`. Requires the same PHPDoc you use for
+  Serializer (`phpstan/phpdoc-parser` + `phpdocumentor/type-resolver` are
+  bundle dependencies). Without PHPDoc, arrays stay `{type: 'array'}` only.
+- **Array of scalars** (`list<int>`, `string[]`, …) — still `{type: 'array'}`
+  without `items` today.
 - Custom Validator constraints — only the standard ones in
   `Symfony\Component\Validator\Constraints\*` are mapped. Custom constraints
   pass through validation but don't appear in the schema.

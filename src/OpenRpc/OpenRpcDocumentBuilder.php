@@ -96,22 +96,50 @@ final class OpenRpcDocumentBuilder
      */
     private function buildParams(MethodMetadata $meta): array
     {
-        // DTO methods: lift the DTO's properties into top-level params so
-        // SDK generators emit a flat call signature instead of "(struct)".
+        // Prefer the compile-time inputSchema — same source as MCP tools.
+        // Covers DTO + scalar siblings, auto-promoted scalars, and nested
+        // DTO fields (including array-of-DTO `items`) without duplicating
+        // JsonSchemaBuilder's flattening rules here.
+        if ([] !== $meta->inputSchema) {
+            return $this->paramsFromInputSchema($meta->inputSchema);
+        }
+
+        // Fallback for synthetic / test metadata without precomputed schema.
         $dto = $meta->getDtoParameter();
         if (null !== $dto && null !== $dto->type && class_exists($dto->type)) {
             return $this->paramsFromDtoConstructor($dto->type);
         }
 
-        // #[Rpc\Param] methods: each annotated business param becomes one
-        // OpenRPC param. Injected ones (Context/HttpRequest/RpcRequest) are
-        // server-side and don't belong in the public contract.
         $out = [];
         foreach ($meta->parameters as $p) {
             if ($p->isInjected() || $p->isDto) {
                 continue;
             }
             $out[] = $this->paramFromParameter($p);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $schema
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function paramsFromInputSchema(array $schema): array
+    {
+        $properties = \is_array($schema['properties'] ?? null)
+            ? $schema['properties']
+            : (array) ($schema['properties'] ?? []);
+        $required = \is_array($schema['required'] ?? null) ? $schema['required'] : [];
+
+        $out = [];
+        foreach ($properties as $name => $propSchema) {
+            $out[] = [
+                'name' => $name,
+                'required' => \in_array($name, $required, true),
+                'schema' => \is_array($propSchema) ? $propSchema : ['type' => 'object'],
+            ];
         }
 
         return $out;

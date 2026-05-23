@@ -35,12 +35,68 @@ final class ArgumentResolver
     {
         $named = $this->toNamedParams($method, $request->params);
 
+        if ($method->rejectUnknown) {
+            $this->assertNoOrphanKeys($method, $named);
+        }
+
         $arguments = [];
         foreach ($method->parameters as $p) {
             $arguments[] = $this->resolveOne($method, $p, $named, $request);
         }
 
         return $arguments;
+    }
+
+    /**
+     * The root params object must only contain keys claimed by some __invoke
+     * parameter — a DTO's ctor field or a scalar #[Rpc\Param] (or auto-promoted
+     * scalar). Without this check, extras would silently disappear: the DTO
+     * branch filters $named to its own keys, so the denormalizer's own
+     * ALLOW_EXTRA_ATTRIBUTES check (the historical orphan signal) never sees
+     * them. We replicate the same error shape the denormalizer emits so the
+     * client-facing -32602 payload is unchanged.
+     *
+     * Skipped when the method declares NO business params (i.e. only Context /
+     * RpcRequest / HttpRequest injection) — such handlers read params manually
+     * via the injected envelope, so the bundle has no schema to validate
+     * against.
+     *
+     * @param array<string, mixed> $named
+     */
+    private function assertNoOrphanKeys(MethodMetadata $method, array $named): void
+    {
+        $owned = [];
+        $hasBusinessParam = false;
+        foreach ($method->parameters as $p) {
+            if ($p->isInjected()) {
+                continue;
+            }
+            $hasBusinessParam = true;
+            if ($p->isDto) {
+                foreach ($p->dtoOwnKeys as $k) {
+                    $owned[$k] = true;
+                }
+                continue;
+            }
+            $owned[$p->lookupKey()] = true;
+        }
+
+        if (!$hasBusinessParam) {
+            return;
+        }
+
+        $unknown = array_keys(array_diff_key($named, $owned));
+        if ([] === $unknown) {
+            return;
+        }
+
+        throw new InvalidParamsException(
+            \sprintf('Unknown parameter(s): %s. Set #[Rpc\\Method(rejectUnknown: false)] (or json_rpc_server.params.reject_unknown: false) to accept extra keys.', implode(', ', $unknown)),
+            array_map(
+                static fn (string $name): array => ['path' => $name, 'message' => 'Unknown parameter', 'code' => null],
+                $unknown,
+            ),
+        );
     }
 
     /**
@@ -132,9 +188,19 @@ final class ArgumentResolver
             if (null === $dtoType || !class_exists($dtoType)) {
                 throw new InvalidParamsException(\sprintf('Method "%s" parameter "%s" has no valid class type.', $method->name, $p->name));
             }
+
+            // Feed the denormalizer only the keys this DTO owns. Siblings —
+            // other DTOs or #[Rpc\Param] scalars — keep their own keys, and
+            // ALLOW_EXTRA_ATTRIBUTES below has nothing to silently swallow.
+            // When dtoOwnKeys is empty (legacy/no ctor) we fall back to the
+            // whole $named to preserve the original single-DTO behavior.
+            $dtoNamed = [] === $p->dtoOwnKeys
+                ? $named
+                : array_intersect_key($named, array_flip($p->dtoOwnKeys));
+
             try {
                 $dto = $this->denormalizer->denormalize(
-                    data: $named,
+                    data: $dtoNamed,
                     type: $dtoType,
                     context: [
                         'collect_denormalization_errors' => true,

@@ -10,6 +10,11 @@ final readonly class ParameterMetadata
 {
     /**
      * @param list<Constraint> $constraints
+     * @param list<string> $dtoOwnKeys ctor-param names of the DTO class, used by the
+     *                                 resolver to feed the denormalizer only its own
+     *                                 subset of $named (so siblings — other DTOs or
+     *                                 scalar #[Rpc\Param] — keep their own keys).
+     *                                 Empty for non-DTO params.
      */
     public function __construct(
         public string $name,
@@ -25,6 +30,7 @@ final readonly class ParameterMetadata
         public ?string $jsonName = null,
         public bool $paramRequired = true,
         public array $constraints = [],
+        public array $dtoOwnKeys = [],
     ) {
     }
 

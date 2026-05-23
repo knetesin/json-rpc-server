@@ -17,6 +17,7 @@ use Knetesin\JsonRpcServerBundle\Cache\Scope\IpScope;
 use Knetesin\JsonRpcServerBundle\Cache\Scope\UserScope;
 use Knetesin\JsonRpcServerBundle\Context\Context;
 use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilderFactory;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
 use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
@@ -59,7 +60,7 @@ final class MethodCompilerPass implements CompilerPassInterface
         $schemaMaxDepth = $container->hasParameter('json_rpc_server.mcp.schema_max_depth')
             ? (int) $container->getParameter('json_rpc_server.mcp.schema_max_depth')
             : 6;
-        $schemaBuilder = new JsonSchemaBuilder(
+        $schemaBuilder = JsonSchemaBuilderFactory::create(
             \is_string($datetimeFormatParam) ? $datetimeFormatParam : 'iso8601',
             $schemaMaxDepth,
         );
@@ -258,6 +259,7 @@ final class MethodCompilerPass implements CompilerPassInterface
                 // Reuse the same constraint rehydration logic the runtime uses
                 // so the precomputed schema sees Length/Range/Positive/etc.
                 constraints: $this->rehydrateConstraints($p['constraints'] ?? []),
+                dtoOwnKeys: $p['dtoOwnKeys'] ?? [],
             ),
             $rawParameters,
         );
@@ -389,6 +391,18 @@ final class MethodCompilerPass implements CompilerPassInterface
             $paramAttrInstances = $p->getAttributes(RpcParam::class);
             $paramAttr = $paramAttrInstances ? $paramAttrInstances[0]->newInstance() : null;
 
+            // Auto-promote: a non-injected, non-DTO parameter (i.e. a builtin
+            // scalar / mixed / untyped) is treated as if it carried #[Rpc\Param]
+            // so it shows up in inputSchema. Without this the parameter still
+            // resolves at runtime (scalar branch reads $named[lookupKey]) but
+            // MCP clients never see it — silent schema/runtime drift.
+            $isInjected = $isContext || $isHttpRequest || $isRpcRequest;
+            $autoPromoted = null === $paramAttr && !$isInjected && !$isDto;
+
+            $dtoOwnKeys = $isDto && class_exists((string) $typeName)
+                ? $this->dtoCtorKeys((string) $typeName)
+                : [];
+
             $out[] = [
                 'name' => $p->getName(),
                 'type' => $typeName,
@@ -399,14 +413,72 @@ final class MethodCompilerPass implements CompilerPassInterface
                 'allowsNull' => $type?->allowsNull() ?? true,
                 'isHttpRequest' => $isHttpRequest,
                 'isRpcRequest' => $isRpcRequest,
-                'hasParamAttribute' => null !== $paramAttr,
+                'hasParamAttribute' => null !== $paramAttr || $autoPromoted,
                 'jsonName' => $paramAttr?->name,
                 'paramRequired' => null !== $paramAttr ? $paramAttr->required : true,
                 'constraints' => $this->collectConstraints($p),
+                'dtoOwnKeys' => $dtoOwnKeys,
             ];
         }
 
+        $this->assertNoKeyConflicts($methodName, $class, $out);
+
         return $out;
+    }
+
+    /**
+     * @param class-string $class
+     *
+     * @return list<string>
+     */
+    private function dtoCtorKeys(string $class): array
+    {
+        $ctor = (new \ReflectionClass($class))->getConstructor();
+        if (null === $ctor) {
+            return [];
+        }
+
+        return array_map(static fn (\ReflectionParameter $p) => $p->getName(), $ctor->getParameters());
+    }
+
+    /**
+     * Enforces that every JSON key in the flat root params object is owned by
+     * exactly one __invoke parameter — either a DTO's ctor field, or a scalar
+     * Rpc\Param (named or auto-promoted). Without this guard, two DTOs (or
+     * DTO + scalar) sharing a key would silently double-resolve, with
+     * unpredictable last-writer-wins semantics depending on declaration order.
+     *
+     * @param list<array<string, mixed>> $params
+     */
+    private function assertNoKeyConflicts(string $methodName, string $class, array $params): void
+    {
+        $owner = [];
+        foreach ($params as $p) {
+            if (true === ($p['isContext'] ?? false)
+                || true === ($p['isHttpRequest'] ?? false)
+                || true === ($p['isRpcRequest'] ?? false)
+            ) {
+                continue;
+            }
+
+            $keys = true === ($p['isDto'] ?? false)
+                ? ($p['dtoOwnKeys'] ?? [])
+                : [$p['jsonName'] ?? $p['name']];
+
+            foreach ($keys as $key) {
+                if (isset($owner[$key])) {
+                    throw new \LogicException(\sprintf(
+                        'RPC method %s (%s): parameter "$%s" claims JSON key "%s" already owned by parameter "$%s". Two DTOs (or DTO + scalar) cannot share a top-level key — rename a ctor argument or use #[Rpc\\Param(name: ...)] to disambiguate.',
+                        $methodName,
+                        $class,
+                        $p['name'],
+                        $key,
+                        $owner[$key],
+                    ));
+                }
+                $owner[$key] = $p['name'];
+            }
+        }
     }
 
     /**

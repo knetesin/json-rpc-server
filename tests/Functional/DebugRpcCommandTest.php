@@ -78,5 +78,11 @@ final class DebugRpcCommandTest extends KernelTestCase
         // boolean plus the extension carrying the reason text.
         $this->assertTrue($methods['math.legacy_add']['deprecated']);
         $this->assertSame('Use math.add instead — will be removed in v2.', $methods['math.legacy_add']['x-deprecation-reason']);
+
+        // Mixed DTO + scalar: OpenRPC must list every flat key (not only DTO ctor fields).
+        $this->assertArrayHasKey('test.dtoPlusScalar', $methods);
+        $dtoPlus = array_column($methods['test.dtoPlusScalar']['params'], 'name');
+        sort($dtoPlus);
+        $this->assertSame(['autoId', 'city', 'street'], $dtoPlus);
     }
 }

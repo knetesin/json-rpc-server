@@ -8,6 +8,12 @@ use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
 use Knetesin\JsonRpcServerBundle\Serializer\DateNormalizer;
 use Knetesin\JsonRpcServerBundle\Type\Date;
+use Symfony\Component\PropertyInfo\Extractor\PhpStanExtractor;
+use Symfony\Component\TypeInfo\Type as TypeInfoType;
+use Symfony\Component\TypeInfo\Type\CollectionType;
+use Symfony\Component\TypeInfo\Type\ObjectType;
+use Symfony\Component\TypeInfo\Type\UnionType;
+use Symfony\Component\TypeInfo\Type\WrappingTypeInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -34,30 +40,61 @@ final class JsonSchemaBuilder
         /** One of DateNormalizer::FORMAT_* or a raw php date() string. */
         private readonly string $datetimeFormat = DateNormalizer::FORMAT_ISO8601,
         ?int $maxDepth = null,
+        /**
+         * Optional: extracts ctor-arg types from PHPDoc (`@var list<MemberDto>`)
+         * so an `array` ctor param can advertise `items: <MemberDto schema>`.
+         * Without it, `array` schemas stay shape-less — runtime denormalization
+         * still works (Symfony Serializer uses its own PropertyInfo chain), but
+         * MCP/LLM clients can't see the element type.
+         */
+        private readonly ?PhpStanExtractor $ctorTypeExtractor = null,
     ) {
         $this->maxDepth = $maxDepth ?? self::DEFAULT_MAX_DEPTH;
     }
 
     /**
-     * Resolves the right schema source for a method:
-     *   - if it takes a DTO, the schema comes from the DTO constructor;
-     *   - otherwise it is built from every parameter carrying #[Rpc\Param].
+     * Builds the method's root inputSchema: every business param contributes
+     * keys at the SAME flat top level.
+     *   - A DTO parameter spreads its ctor fields into the root.
+     *   - A scalar #[Rpc\Param] (or auto-promoted scalar) adds its own key.
+     * Key conflicts are forbidden — MethodCompilerPass::assertNoKeyConflicts
+     * fails the container build long before this method runs.
      *
      * @return array<string, mixed>
      */
     public function fromMethod(MethodMetadata $meta): array
     {
-        $dto = $meta->getDtoParameter();
-        if (null !== $dto) {
-            return $this->fromClass($dto->type);
-        }
-
         $paramSchemas = [];
         $required = [];
+
         foreach ($meta->parameters as $p) {
+            if ($p->isInjected()) {
+                continue;
+            }
+
+            if ($p->isDto) {
+                $dtoSchema = $this->fromClass($p->type);
+                $dtoProps = $dtoSchema['properties'] ?? null;
+                if ($dtoProps instanceof \stdClass) {
+                    $dtoProps = (array) $dtoProps;
+                }
+                if (\is_array($dtoProps)) {
+                    foreach ($dtoProps as $k => $v) {
+                        $paramSchemas[$k] = $v;
+                    }
+                }
+                if (isset($dtoSchema['required']) && \is_array($dtoSchema['required'])) {
+                    foreach ($dtoSchema['required'] as $k) {
+                        $required[] = $k;
+                    }
+                }
+                continue;
+            }
+
             if (!$p->hasParamAttribute) {
                 continue;
             }
+
             $name = $p->lookupKey();
             $paramSchemas[$name] = $this->schemaForParamMetadata($p);
             if ($p->paramRequired && !$p->hasDefault && !$p->allowsNull) {
@@ -71,7 +108,7 @@ final class JsonSchemaBuilder
 
         $schema = ['type' => 'object', 'properties' => (object) $paramSchemas];
         if ([] !== $required) {
-            $schema['required'] = $required;
+            $schema['required'] = array_values(array_unique($required));
         }
         $schema['additionalProperties'] = false;
 
@@ -159,11 +196,114 @@ final class JsonSchemaBuilder
         $type = $param->getType();
         $base = $this->schemaForType($type, $depth);
 
+        // `array $items` ctor param — see if the PHPDoc carries `list<Foo>` /
+        // `Foo[]` / similar, so the schema can carry `items` for MCP clients.
+        // Only applies when the param actually lives on a class ctor (not on
+        // a free function); $this->ctorTypeExtractor is null in test builders.
+        if ($this->parameterAdvertisesArray($base) && null !== $this->ctorTypeExtractor) {
+            $itemClass = $this->resolveCtorArrayItemClass($param);
+            if (null !== $itemClass) {
+                $base['items'] = $this->fromClass($itemClass, $depth + 1);
+            }
+        }
+
         foreach ($this->collectAttributes($param) as $instance) {
             $this->applyConstraint($instance, $base);
         }
 
         return $base;
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     */
+    private function parameterAdvertisesArray(array $base): bool
+    {
+        $t = $base['type'] ?? null;
+
+        return 'array' === $t || (\is_array($t) && \in_array('array', $t, true));
+    }
+
+    /**
+     * Returns the class-name of the array element if the ctor param's PHPDoc
+     * advertises `list<X>` / `X[]` / `array<int, X>`, otherwise null. Best-effort:
+     * any extractor failure (param lives outside a class, no docblock, mixed
+     * value, …) collapses to null so the schema just lacks `items` rather than
+     * the container build dying for an MCP nicety.
+     *
+     * @return class-string|null
+     */
+    private function resolveCtorArrayItemClass(\ReflectionParameter $param): ?string
+    {
+        $declaring = $param->getDeclaringClass()?->getName();
+        $function = $param->getDeclaringFunction();
+        if (null === $declaring || !$function instanceof \ReflectionMethod || '__construct' !== $function->getName()) {
+            return null;
+        }
+        try {
+            $type = $this->ctorTypeExtractor?->getTypeFromConstructor($declaring, $param->getName());
+        } catch (\Throwable) {
+            return null;
+        }
+        if (!$type instanceof TypeInfoType) {
+            return null;
+        }
+
+        $collection = $this->findCollectionType($type);
+        if (!$collection instanceof CollectionType) {
+            return null;
+        }
+
+        $value = $this->findObjectType($collection->getCollectionValueType());
+        if (!$value instanceof ObjectType) {
+            return null;
+        }
+        $className = $value->getClassName();
+        if (!class_exists($className)) {
+            return null;
+        }
+
+        return $className;
+    }
+
+    private function findCollectionType(TypeInfoType $type): ?TypeInfoType
+    {
+        if ($type instanceof CollectionType) {
+            return $type;
+        }
+        if ($type instanceof UnionType) {
+            foreach ($type->getTypes() as $t) {
+                $found = $this->findCollectionType($t);
+                if (null !== $found) {
+                    return $found;
+                }
+            }
+        }
+        if ($type instanceof WrappingTypeInterface) {
+            return $this->findCollectionType($type->getWrappedType());
+        }
+
+        return null;
+    }
+
+    private function findObjectType(TypeInfoType $type): ?TypeInfoType
+    {
+        if ($type instanceof ObjectType) {
+            return $type;
+        }
+        if ($type instanceof UnionType) {
+            foreach ($type->getTypes() as $t) {
+                $found = $this->findObjectType($t);
+                if (null !== $found) {
+                    return $found;
+                }
+            }
+        }
+        if ($type instanceof WrappingTypeInterface) {
+            return $this->findObjectType($type->getWrappedType());
+        }
+
+        return null;
     }
 
     /**

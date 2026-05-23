@@ -19,6 +19,7 @@ use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
 use Knetesin\JsonRpcServerBundle\Maker\MakeRpcMethod;
 use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilderFactory;
 use Knetesin\JsonRpcServerBundle\Mcp\McpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpToolRegistry;
@@ -143,6 +144,7 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments');
 
     $services->set(JsonSchemaBuilder::class)
+        ->factory([JsonSchemaBuilderFactory::class, 'create'])
         ->args(['%json_rpc_server.serializer.datetime_format%', '%json_rpc_server.mcp.schema_max_depth%']);
 
     $services->set(McpToolFilter::class)

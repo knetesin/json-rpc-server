@@ -109,6 +109,38 @@ final class McpEndpointTest extends KernelTestCase
         $this->assertSame(32, $echo['inputSchema']['properties']['message']['maxLength']);
     }
 
+    public function testNoParamMethodEmitsEmptyPropertiesAsObject(): void
+    {
+        // Per JSON Schema spec `properties` is an object — empty must serialize as `{}`, not `[]`.
+        // json_decode(assoc:true) loses the distinction, so assert against the raw response body.
+        $kernel = $this->boot(['mcp' => ['expose_all' => true]]);
+        $response = $kernel->handle(Request::create('/mcp/tools', 'GET'));
+        $body = $this->responseContent($response);
+
+        $bareToolJson = $this->extractToolJson($body, 'secured.bare');
+        $this->assertStringContainsString('"properties":{}', $bareToolJson);
+        $this->assertStringNotContainsString('"properties":[]', $bareToolJson);
+    }
+
+    private function extractToolJson(string $body, string $name): string
+    {
+        $needle = '"name":"'.$name.'"';
+        $pos = strpos($body, $needle);
+        $this->assertNotFalse($pos, "Tool $name not found in response body");
+        // The tool object starts at the nearest `{` before $pos and ends at its matching `}`.
+        $start = strrpos(substr($body, 0, $pos), '{');
+        $this->assertNotFalse($start);
+        $depth = 0;
+        $len = \strlen($body);
+        for ($i = $start; $i < $len; ++$i) {
+            $depth += ('{' === $body[$i] ? 1 : 0) - ('}' === $body[$i] ? 1 : 0);
+            if (0 === $depth) {
+                return substr($body, $start, $i - $start + 1);
+            }
+        }
+        $this->fail("Could not find matching brace for tool $name");
+    }
+
     public function testCallReturnsMcpContentAndStructuredFormat(): void
     {
         $kernel = $this->boot();

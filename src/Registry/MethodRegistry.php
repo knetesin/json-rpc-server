@@ -99,6 +99,7 @@ final class MethodRegistry
                 jsonName: $p['jsonName'] ?? null,
                 paramRequired: $p['paramRequired'] ?? true,
                 constraints: $this->buildConstraints($p['constraints'] ?? []),
+                dtoOwnKeys: $p['dtoOwnKeys'] ?? [],
             ),
             $raw['parameters'],
         ));
@@ -134,9 +135,35 @@ final class MethodRegistry
             ) : null,
             maxRequestSize: $raw['maxRequestSize'] ?? null,
             inputSchema: isset($raw['inputSchemaJson'])
-                ? (array) json_decode($raw['inputSchemaJson'], true, self::SCHEMA_JSON_DEPTH, \JSON_THROW_ON_ERROR)
+                ? self::normalizeSchema((array) json_decode($raw['inputSchemaJson'], true, self::SCHEMA_JSON_DEPTH, \JSON_THROW_ON_ERROR))
                 : [],
         );
+    }
+
+    /**
+     * json_decode($json, assoc: true) collapses `{}` into `[]`, which then
+     * re-encodes as `properties: []` — invalid per JSON Schema, where these
+     * keys are objects. Walk the tree and restore stdClass for empty maps
+     * under the object-shaped keywords.
+     *
+     * @param array<string, mixed> $schema
+     *
+     * @return array<string, mixed>
+     */
+    private static function normalizeSchema(array $schema): array
+    {
+        static $objectKeys = ['properties', 'patternProperties', 'definitions', '$defs'];
+        foreach ($schema as $key => $value) {
+            if (\is_array($value)) {
+                if (\in_array($key, $objectKeys, true) && [] === $value) {
+                    $schema[$key] = new \stdClass();
+                    continue;
+                }
+                $schema[$key] = self::normalizeSchema($value);
+            }
+        }
+
+        return $schema;
     }
 
     /**

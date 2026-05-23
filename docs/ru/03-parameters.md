@@ -10,6 +10,58 @@
 
 Все три можно смешивать с injectable-параметрами (`Context`, `Request`).
 
+## Плоский объект `params` на wire
+
+Сколько бы PHP-параметров ни было у handler'а, **клиент всегда шлёт один
+JSON-объект** на верхнем уровне `params` (без вложенного «мешка» на имя
+DTO-параметра):
+
+```json
+{
+  "params": {
+    "email": "x@y",
+    "limit": 25,
+    "user_id": 42
+  }
+}
+```
+
+Бандл маппит ключи так:
+
+| Форма handler'а | Что в `params` | MCP / OpenRPC `inputSchema` |
+|---|---|---|
+| **Один DTO** | Ключи = поля конструктора DTO | Те же плоские ключи |
+| **DTO + scalar(ы)** | Поля DTO **и** scalar-ключи рядом | Те же плоские ключи |
+| **Только scalars** (`#[Rpc\Param]` или auto-promote) | Один ключ на business-параметр | Те же плоские ключи |
+| **Несколько DTO** | Объединение ctor-ключей всех DTO (плоско) | Те же плоские ключи — **разрешено**; дубликат JSON-ключа ломает сборку |
+| **Только `RpcRequest`** | Что читаете вручную | Пустая / без авто-схемы |
+
+Примеры:
+
+```php
+// Один DTO — params: {"email": "...", "limit": 25}
+public function __invoke(GetUserRequest $req, Context $ctx): array
+
+// DTO + scalar — params: {"street": "...", "city": "...", "autoId": 7}
+public function __invoke(AddressDto $address, #[Assert\Positive] int $autoId, Context $ctx): array
+
+// Только scalars — params: {"user_id": 42, "reason": null}
+public function __invoke(#[Rpc\Param('user_id')] int $userId, ?string $reason, Context $ctx): array
+
+// Два DTO — params: {"street": "...", "city": "...", "email": "..."}
+// (AddressDto + ContactDto, если имена полей ctor не пересекаются)
+public function __invoke(AddressDto $address, ContactDto $contact, Context $ctx): array
+```
+
+Auto-promotion: «голый» builtin / `mixed` (не `Context`, не `Request`, не
+`RpcRequest`, не class-DTO) ведёт себя как `#[Rpc\Param]` с `name` =
+имя PHP-параметра — попадает в MCP/OpenRPC без атрибута.
+
+Владение ключом проверяется при **сборке контейнера** — каждый JSON-ключ в
+`params` должен принадлежать ровно одному business-параметру. Коллизия ломает
+сборку (поле `city` в двух DTO, или DTO `id` и scalar `$id`). Лимита на число
+DTO нет — запрещены только повторяющиеся ключи.
+
 ## Паттерн 1 — DTO
 
 ```php
@@ -94,6 +146,64 @@ json_rpc_server:
 
 При разрешении `"params": ["x@y", 25]` маппится позиционно на аргументы
 конструктора DTO.
+
+### Вложенный DTO vs массив DTO
+
+Поле DTO может быть другим DTO или списком DTO:
+
+```php
+final readonly class TeamRequest
+{
+    /**
+     * @param list<MemberDto> $members
+     */
+    public function __construct(
+        #[Assert\Valid]
+        public array $members,
+    ) {}
+}
+```
+
+На wire:
+
+```json
+{"params": {"members": [{"name": "alice"}, {"name": "bob"}]}}
+```
+
+- **Runtime:** Symfony Serializer денормализует элементы в `MemberDto`, если
+  в PHPDoc конструктора указано `list<MemberDto>` (тот же doc, что и без
+  бандла). Для валидации элементов — `#[Assert\Valid]`.
+- **MCP / OpenRPC:** `JsonSchemaBuilder` читает PHPDoc через
+  `symfony/property-info` и добавляет ключ JSON Schema **`items`** — это
+  **под-схема одного элемента**, а не сам массив из `params`.
+
+  Не путать:
+
+  | | Назначение | Форма |
+  |---|---|---|
+  | **`params.members` на wire** | Реальный JSON-RPC payload | JSON-**массив** объектов: `[{"name":"alice"}, …]` |
+  | **`inputSchema.properties.members.items`** | Правило из [JSON Schema](https://json-schema.org/understanding-json-schema/reference/array) | JSON-**объект** — схема элемента: `{ "type": "object", "properties": { "name": … } }` |
+
+  `items` здесь не `[]` — пустой JSON-массив в `items` означал бы tuple-validation
+  (draft-07), бандл так не строит схему. Для `list<MemberDto>` сервер отдаёт,
+  например:
+
+  ```json
+  "members": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  }
+  ```
+
+  Для `list<string>` и других scalar-элементов в схеме пока только
+  `{ "type": "array" }` без `items` — вложенный `items` строится для object-типов.
 
 ## Паттерн 2 — `#[Rpc\Param]`
 

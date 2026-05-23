@@ -10,6 +10,60 @@ Three ways to receive parameters, picked by handler signature:
 
 All three can be mixed with injected parameters (`Context`, `Request`).
 
+## Flat `params` on the wire
+
+Regardless of how many PHP parameters your handler declares, **clients always
+send one JSON object** at the top level of `params` (never a nested bag per
+DTO parameter name):
+
+```json
+{
+  "params": {
+    "email": "x@y",
+    "limit": 25,
+    "user_id": 42
+  }
+}
+```
+
+The bundle maps keys to handler arguments like this:
+
+| Handler shape | What appears in `params` | MCP / OpenRPC `inputSchema` |
+|---|---|---|
+| **Single DTO** | Keys = DTO constructor property names | Same flat keys |
+| **DTO + scalar(s)** | DTO fields **and** scalar keys side by side | Same flat keys |
+| **Scalars only** (`#[Rpc\Param]` or auto-promoted) | One key per business parameter | Same flat keys |
+| **Multiple DTOs** | Union of every DTO's ctor keys (flat) | Same flat keys — **allowed**; any duplicate JSON key fails container build |
+| **`RpcRequest` only** | Whatever you read manually | Empty / no automatic schema |
+
+Examples:
+
+```php
+// Single DTO — params: {"email": "...", "limit": 25}
+public function __invoke(GetUserRequest $req, Context $ctx): array
+
+// DTO + scalar sibling — params: {"street": "...", "city": "...", "autoId": 7}
+public function __invoke(AddressDto $address, #[Assert\Positive] int $autoId, Context $ctx): array
+
+// Scalars only — params: {"user_id": 42, "reason": null}
+public function __invoke(#[Rpc\Param('user_id')] int $userId, ?string $reason, Context $ctx): array
+
+// Two DTOs — params: {"street": "...", "city": "...", "email": "..."}
+// (AddressDto + ContactDto as long as ctor field names do not overlap)
+public function __invoke(AddressDto $address, ContactDto $contact, Context $ctx): array
+```
+
+Auto-promotion: a bare builtin / `mixed` parameter (not `Context`, not
+`Request`, not `RpcRequest`, not a class DTO) is treated as `#[Rpc\Param]`
+with `name` = the PHP parameter name, so it still shows up in MCP/OpenRPC
+without the attribute.
+
+Key ownership is enforced at **container compile time** — every JSON key in
+`params` must belong to exactly one business parameter. Collisions fail the
+build (DTO field `city` + another DTO's `city`, or DTO `id` + scalar `$id`).
+There is no limit on how many DTOs you declare; only duplicate keys are
+forbidden.
+
 ## Pattern 1 — DTO
 
 ```php
@@ -96,6 +150,65 @@ json_rpc_server:
 
 When enabled, `"params": ["x@y", 25]` maps positionally onto the DTO's
 constructor arguments.
+
+### Nested DTO property vs array of DTOs
+
+A DTO field can be another DTO or a list of DTOs:
+
+```php
+final readonly class TeamRequest
+{
+    /**
+     * @param list<MemberDto> $members
+     */
+    public function __construct(
+        #[Assert\Valid]
+        public array $members,
+    ) {}
+}
+```
+
+Wire shape:
+
+```json
+{"params": {"members": [{"name": "alice"}, {"name": "bob"}]}}
+```
+
+- **Runtime:** Symfony Serializer denormalizes each array element into
+  `MemberDto` when the constructor PHPDoc advertises `list<MemberDto>` (same
+  doc you would use without this bundle). Add `#[Assert\Valid]` to validate
+  each element.
+- **MCP / OpenRPC:** `JsonSchemaBuilder` reads that PHPDoc via
+  `symfony/property-info` and adds a JSON Schema **`items` keyword** — a
+  **sub-schema for one element**, not the wire array itself.
+
+  Do not confuse:
+
+  | | Role | Shape |
+  |---|---|---|
+  | **`params.members` on the wire** | Actual JSON-RPC payload | JSON **array** of objects: `[{"name":"alice"}, …]` |
+  | **`inputSchema.properties.members.items`** | Schema rule per [JSON Schema](https://json-schema.org/understanding-json-schema/reference/array) | JSON **object** describing each element: `{ "type": "object", "properties": { "name": … } }` |
+
+  `items` is never `[]` here — an empty JSON array as `items` would mean
+  “tuple validation” (draft-07), which this bundle does not emit. For
+  `list<MemberDto>` the server returns something like:
+
+  ```json
+  "members": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  }
+  ```
+
+  Scalar element types (`list<string>`) still appear as `{ "type": "array" }`
+  without `items` — only object element types get nested `items` today.
 
 ## Pattern 2 — `#[Rpc\Param]`
 

@@ -23,6 +23,12 @@ namespace Knetesin\JsonRpcServerBundle\Attribute;
  *   - The parameter shows up in the method's MCP `inputSchema` — so tools
  *     declared without a DTO are still discoverable by LLM clients.
  *
+ * Auto-promotion: a bare builtin/mixed/untyped `__invoke()` parameter (i.e.
+ * not Context / RpcRequest / HttpRequest / a DTO class) is treated AS IF it
+ * carried `#[Rpc\Param]` — JSON key = PHP name, required driven by the
+ * signature. Put the attribute explicitly only when you need a custom `name`
+ * or want to hint `required: false` to the JSON Schema.
+ *
  * `required` is informational for the JSON Schema only. Whether the param
  * is actually mandatory is driven by the PHP signature (default value or
  * nullable type makes it optional).
