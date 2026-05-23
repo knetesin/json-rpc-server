@@ -10,7 +10,8 @@ bundle never inspects credentials directly.
 
 ## Public methods
 
-Omit `roles` and the dispatcher skips authorization entirely:
+By default, omitting `roles` makes the method public — the dispatcher skips
+authorization entirely:
 
 ```php
 #[Rpc\Method('public.ping')]
@@ -22,6 +23,11 @@ final class Ping
 
 Anonymous requests pass through, **provided your firewall also allows them on
 the `/rpc` route.**
+
+> **Switching to secure-by-default.** Set `security.default_roles` (see
+> [Configuration reference](./13-configuration.md#securitydefault_roles--public_prefixes--public_methods))
+> to flip the default: every method without explicit `roles:` inherits the
+> listed roles, and only `public_prefixes` / `public_methods` stay anonymous.
 
 ## Protected methods
 

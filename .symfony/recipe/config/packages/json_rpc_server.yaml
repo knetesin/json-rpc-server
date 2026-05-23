@@ -1,7 +1,31 @@
 ###> knetesin/json-rpc-server ###
-# https://github.com/knetesin/json-rpc-server#configuration
-# json_rpc_server:
-#     profiler:
-#         enabled: true   # Web Profiler panel (dev, requires symfony/web-profiler-bundle)
-json_rpc_server: ~
+# Docs index: https://github.com/knetesin/json-rpc-server/blob/main/docs/en/README.md
+json_rpc_server:
+    security:
+        # Set default_roles to flip into secure-by-default mode: every method without
+        # #[Rpc\Method(roles: [...])] inherits these roles. Only public_methods /
+        # public_prefixes stay anonymous. See the Security guide.
+        default_roles:   []   # e.g. ['ROLE_USER']
+        public_prefixes: []   # e.g. ['public.', 'health.']
+        public_methods:  []   # e.g. ['ping', 'version']
+    mcp:
+        enabled: false   # opt-in: registers /mcp/tools + /mcp/call for MCP clients (Claude Desktop, internal agents). See the MCP guide.
+    logging:
+        # One log line per RPC call (started/completed/failed) to the default `logger`.
+        # Off by default to avoid duplicates if the host app already logs RPC traffic.
+        # In PII-sensitive prod environments also set log_params: false. See the Observability guide.
+        enabled: false
+    routes:
+        rpc:        { path: /rpc,              enabled: true  }
+        stream:     { path: /rpc/stream,       enabled: false }   # flip on if any handler carries #[Rpc\Stream] (compile-time check enforces this)
+        mcp_tools:  { path: /mcp/tools,        enabled: true  }   # only effective when mcp.enabled is true
+        mcp_call:   { path: /mcp/call,         enabled: true  }   # only effective when mcp.enabled is true
+        openrpc:    { path: /rpc.openrpc.json, enabled: false }   # see when@dev override below
+
+when@dev:
+    json_rpc_server:
+        logging:
+            enabled: true   # log every RPC call in dev — handy when stepping through fixtures
+        routes:
+            openrpc: { enabled: true }   # publish discovery doc in dev — useful for client/SDK generators
 ###< knetesin/json-rpc-server ###

@@ -5,6 +5,21 @@ JSON-RPC envelope на входе и эмитит ряды во времени. 
 (спека request/response), а намеренное расширение — для streaming LLM-токенов,
 server-sent updates, progressive lists и т.д.
 
+## Включение
+
+Streaming-маршрут **выключен по умолчанию** — поставьте `true`, когда
+реально появился `#[Rpc\Stream]`-хендлер:
+
+```yaml
+json_rpc_server:
+  routes:
+    stream: { enabled: true }
+```
+
+Если забудете — compiler pass на этапе сборки контейнера бросит понятный
+`LogicException` со списком всех методов, у которых стоит атрибут. Никаких
+тихих 404.
+
 ## Объявление streaming-метода
 
 ```php

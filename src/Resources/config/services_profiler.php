@@ -12,7 +12,7 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set('json_rpc.data_collector', JsonRpcDataCollector::class)
         ->tag('data_collector', [
-            'template' => '@JsonRpcServerBundle/Resources/views/Collector/json_rpc.html.twig',
+            'template' => '@JsonRpcServer/Collector/json_rpc.html.twig',
             'id' => 'json_rpc',
             'priority' => 265,
         ]);

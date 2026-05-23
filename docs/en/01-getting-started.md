@@ -5,6 +5,7 @@
 - PHP 8.3+ (the bundle uses typed class constants throughout)
 - Symfony 7.x or 8.x
 - `ext-json`
+- `symfony/expression-language` (required by route `condition`s — installed automatically with the bundle)
 
 Optional packages (`composer suggest`):
 
@@ -23,37 +24,90 @@ feature whose backing package is missing — you won't ship "silently broken".
 composer require knetesin/json-rpc-server
 ```
 
-With Symfony Flex the bundle is auto-registered. Without Flex, add it to
-`config/bundles.php`:
+Requirements in the host app:
+
+- `symfony/flex` (recommended) — applies the bundled recipe on `composer require`
+- `symfony/routing` — route import (see below)
+
+### Two config files (not one)
+
+The bundle needs **both** files. They do different jobs:
+
+| File | Purpose |
+|---|---|
+| `config/packages/json_rpc_server.yaml` | Bundle settings (paths, MCP, cache, …) |
+| `config/routes/json_rpc_server.yaml` | **Registers** HTTP routes in Symfony |
+
+Changing `json_rpc_server.routes` in the **packages** file only changes paths
+on routes that are **already imported** — it does not create routes by itself.
+
+**With Symfony Flex**, the recipe in the package (`.symfony/recipe/`) should copy
+both files on first `composer require`. You should see:
+
+```
+config/packages/json_rpc_server.yaml
+config/routes/json_rpc_server.yaml
+```
+
+**If the recipe did not run** (no `config/routes/json_rpc_server.yaml`, or no
+`symfony.lock` entry for `knetesin/json-rpc-server`), add them manually:
 
 ```php
+// config/bundles.php
 return [
     // ...
     JsonRpcServer\JsonRpcServerBundle::class => ['all' => true],
 ];
 ```
 
-## Minimal configuration
-
-Zero config works out of the box. The defaults are documented in
-[Configuration reference](./13-configuration.md). For a first run create an
-empty file:
+```yaml
+# config/routes/json_rpc_server.yaml  ← required
+json_rpc_server:
+    resource: '@JsonRpcServerBundle/Resources/config/routes.php'
+    type: php
+```
 
 ```yaml
 # config/packages/json_rpc_server.yaml
 json_rpc_server: ~
 ```
 
-The bundle registers four routes:
+Then retry:
 
-| Route | Path | Method |
-|---|---|---|
-| `rpc` | `/rpc` | POST |
-| `rpc_stream` | `/rpc/stream` | POST |
-| `rpc_mcp_tools` | `/mcp/tools` | GET |
-| `rpc_mcp_call` | `/mcp/call` | POST |
+```bash
+composer recipes:install knetesin/json-rpc-server --force -v
+# or (older Flex): composer symfony:recipes:install knetesin/json-rpc-server --force -v
+bin/console cache:clear
+bin/console debug:router | grep rpc
+```
 
-You can change these paths in `rpc.routes` or disable any of them.
+> **Note:** Recipes for `knetesin/json-rpc-server` ship **inside the Composer
+> package** (`.symfony/recipe/`). They are not in `symfony/recipes-contrib` yet,
+> so some setups only apply them from `vendor/` on `composer require`. Manual
+> files above always work.
+
+## Routes and paths
+
+Default paths (after the routes file is imported):
+
+| Route | Path | Method | Default |
+|---|---|---|---|
+| `rpc` | `/rpc` | POST | enabled |
+| `rpc_stream` | `/rpc/stream` | POST | **disabled** — flip `routes.stream.enabled: true` if any handler uses `#[Rpc\Stream]` |
+| `rpc_mcp_tools` | `/mcp/tools` | GET | **disabled** — flip `mcp.enabled: true` |
+| `rpc_mcp_call` | `/mcp/call` | POST | **disabled** — flip `mcp.enabled: true` |
+| `rpc_openrpc` | `/rpc.openrpc.json` | GET | **disabled** — flip `routes.openrpc.enabled: true` to publish |
+
+Override paths or disable a route in **packages** config:
+
+```yaml
+# config/packages/json_rpc_server.yaml
+json_rpc_server:
+    routes:
+        mcp_tools: { path: /mcp2/tools, enabled: true }
+```
+
+See [Configuration reference](./13-configuration.md) for every `routes.*` knob.
 
 ## Your first handler
 

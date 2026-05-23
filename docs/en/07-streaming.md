@@ -5,6 +5,20 @@ JSON-RPC envelope on input and emits rows over time. This is **not** JSON-RPC
 2.0 (the spec is request/response only) — it's a deliberate extension for
 LLM token streaming, server-sent updates, progressive lists, etc.
 
+## Enabling
+
+The streaming route is **off by default** — flip it on when you actually have
+a `#[Rpc\Stream]` handler:
+
+```yaml
+json_rpc_server:
+  routes:
+    stream: { enabled: true }
+```
+
+If you forget, the compiler pass throws a clear `LogicException` at container
+build listing every method that carries the attribute — no silent 404s.
+
 ## Declaring a streaming method
 
 ```php

@@ -39,6 +39,13 @@ final class MethodCompilerPass implements CompilerPassInterface
             throw new \LogicException('Parameter json_rpc_server.security.roles_match must be a string or int.');
         }
         $defaultRolesMatch = RoleMatch::from($rolesMatchParam);
+        /** @var list<string> $defaultRoles */
+        $defaultRoles = (array) $container->getParameter('json_rpc_server.security.default_roles');
+        /** @var list<string> $publicPrefixes */
+        $publicPrefixes = (array) $container->getParameter('json_rpc_server.security.public_prefixes');
+        /** @var list<string> $publicMethods */
+        $publicMethods = (array) $container->getParameter('json_rpc_server.security.public_methods');
+        $publicMethodsIndex = array_fill_keys($publicMethods, true);
         $defaultAllowPositionalDto = (bool) $container->getParameter('json_rpc_server.params.allow_positional_dto');
         $defaultRejectUnknown = (bool) $container->getParameter('json_rpc_server.params.reject_unknown');
         $datetimeFormatParam = $container->hasParameter('json_rpc_server.serializer.datetime_format')
@@ -105,10 +112,18 @@ final class MethodCompilerPass implements CompilerPassInterface
             $parameters = $this->buildParameters($invoke, $methodAttr->name, $class);
             $returnType = $invoke->getReturnType()?->__toString();
 
+            $effectiveRoles = $this->resolveEffectiveRoles(
+                $methodAttr->name,
+                $methodAttr->roles,
+                $defaultRoles,
+                $publicPrefixes,
+                $publicMethodsIndex,
+            );
+
             $raw = [
                 'name' => $methodAttr->name,
                 'serviceClass' => $class,
-                'roles' => $methodAttr->roles,
+                'roles' => $effectiveRoles,
                 'rolesMatch' => ($methodAttr->rolesMatch ?? $defaultRolesMatch)->value,
                 'allowPositionalDto' => $methodAttr->allowPositionalDto ?? $defaultAllowPositionalDto,
                 'rejectUnknown' => $methodAttr->rejectUnknown ?? $defaultRejectUnknown,
@@ -164,6 +179,20 @@ final class MethodCompilerPass implements CompilerPassInterface
         }
 
         ksort($methods);
+
+        // Catch the easy misconfiguration: a method declares #[Rpc\Stream] but
+        // the operator left routes.stream.enabled at the (default) false. The
+        // method would silently respond 404 on /rpc/stream at runtime. Fail
+        // loudly at container build instead.
+        if (!(bool) $container->getParameter('json_rpc_server.routes.stream.enabled')) {
+            $streamMethods = array_keys(array_filter($methods, static fn (array $m): bool => (bool) $m['isStreaming']));
+            if ([] !== $streamMethods) {
+                throw new \LogicException(\sprintf(
+                    'json_rpc_server.routes.stream.enabled is false, but the following methods carry #[Rpc\\Stream]: %s. Either set routes.stream.enabled: true to serve them on /rpc/stream, or remove the attribute.',
+                    implode(', ', $streamMethods),
+                ));
+            }
+        }
 
         $registry = $container->getDefinition(MethodRegistry::class);
         $registry->setArgument(0, $methods);
@@ -279,6 +308,43 @@ final class MethodCompilerPass implements CompilerPassInterface
         $attrs = $r->getAttributes($attr);
 
         return $attrs ? $attrs[0]->newInstance() : null;
+    }
+
+    /**
+     * Resolution precedence (first match wins):
+     *   1. attribute carries explicit roles  → use as-is
+     *   2. name listed in public_methods     → public (operator allow)
+     *   3. name matches a public_prefixes    → public (operator allow)
+     *   4. default_roles is non-empty        → apply default
+     *   5. otherwise                         → public (historical behavior)
+     *
+     * @param list<string>        $attributeRoles
+     * @param list<string>        $defaultRoles
+     * @param list<string>        $publicPrefixes
+     * @param array<string, true> $publicMethodsIndex
+     *
+     * @return list<string>
+     */
+    private function resolveEffectiveRoles(
+        string $methodName,
+        array $attributeRoles,
+        array $defaultRoles,
+        array $publicPrefixes,
+        array $publicMethodsIndex,
+    ): array {
+        if ([] !== $attributeRoles) {
+            return $attributeRoles;
+        }
+        if (isset($publicMethodsIndex[$methodName])) {
+            return [];
+        }
+        foreach ($publicPrefixes as $prefix) {
+            if ('' !== $prefix && str_starts_with($methodName, $prefix)) {
+                return [];
+            }
+        }
+
+        return $defaultRoles;
     }
 
     /**

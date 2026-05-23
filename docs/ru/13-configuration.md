@@ -18,6 +18,9 @@ json_rpc_server:
   security:
     roles_match: any
     expose_role_names: true
+    default_roles: []         # напр. ['ROLE_USER'] для secure-by-default
+    public_prefixes: []       # напр. ['public.', 'health.']
+    public_methods: []        # напр. ['ping', 'version']
 
   params:
     allow_positional_dto: false
@@ -106,6 +109,34 @@ json_rpc_server:
   security:
     expose_role_names: false
 ```
+
+## `security.default_roles` / `public_prefixes` / `public_methods`
+
+По умолчанию `[]` / `[]` / `[]` — историческое поведение "нет `roles:` в
+атрибуте = публичный метод". Задайте `default_roles`, чтобы переключить
+бандл в режим secure-by-default: каждый метод без своего
+`#[Rpc\Method(roles: [...])]` получает роли из конфига, а `public_prefixes`
+и `public_methods` — allowlist для эндпоинтов, которые должны остаться
+анонимными.
+
+Порядок резолюции (первое совпадение выигрывает, считается на compile time):
+
+1. атрибут содержит непустые `roles` → используется как есть
+2. имя метода в `public_methods` → публичный
+3. имя начинается с одного из `public_prefixes` → публичный
+4. `default_roles` не пуст → подставляются дефолтные
+5. иначе → публичный
+
+```yaml
+json_rpc_server:
+  security:
+    default_roles: ['ROLE_USER']
+    public_prefixes: ['public.', 'health.']
+    public_methods: ['ping']
+```
+
+Резолвленные роли попадают в `MethodMetadata::$roles` — `debug:rpc` и
+профайлер показывают итоговое значение, а не исходник.
 
 ## `params.allow_positional_dto`
 

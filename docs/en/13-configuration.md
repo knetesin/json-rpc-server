@@ -20,6 +20,9 @@ json_rpc_server:
     security:
         roles_match: any
         expose_role_names: true
+        default_roles: []         # e.g. ['ROLE_USER'] for secure-by-default
+        public_prefixes: []       # e.g. ['public.', 'health.']
+        public_methods: []        # e.g. ['ping', 'version']
 
     # ---------- request / response shape ----------
     max_request_size: 1048576
@@ -154,6 +157,33 @@ ROLE_Y"_. Flip to `false` in prod if your role identifiers leak business
 structure (`ROLE_BILLING_INTERNAL`) — the client then gets a generic
 `Access denied`.
 
+### `security.default_roles` / `public_prefixes` / `public_methods`
+
+Default `[]` / `[]` / `[]` — historical "no `roles:` on attribute means
+public" behavior. Set `default_roles` to flip the bundle into secure-by-default
+mode: every method that doesn't carry its own `#[Rpc\Method(roles: [...])]`
+inherits the listed roles, with `public_prefixes` and `public_methods` as the
+allowlist for endpoints that should stay anonymous.
+
+Resolution precedence (first match wins, computed at container compile time):
+
+1. attribute carries explicit `roles` → use as-is
+2. method name is in `public_methods` → public
+3. method name starts with any `public_prefixes` entry → public
+4. `default_roles` is non-empty → apply default
+5. otherwise → public
+
+```yaml
+json_rpc_server:
+  security:
+    default_roles: ['ROLE_USER']
+    public_prefixes: ['public.', 'health.']
+    public_methods: ['ping']
+```
+
+The resolved roles end up in `MethodMetadata::$roles` — `debug:rpc` and the
+profiler show the materialized value, not the source.
+
 ### `max_request_size`
 
 Default `1048576` (1 MiB). Body size limit in bytes for `/rpc`, `/rpc/stream`
@@ -263,6 +293,10 @@ between requests. Flip to `true` only if your handlers are guaranteed
 stateless and you want the per-process instantiation cost saved.
 
 ### `routes.{name}.path` / `routes.{name}.enabled`
+
+These keys only affect routes that Symfony already loads from
+`config/routes/json_rpc_server.yaml` (created by the Flex recipe or added
+manually — see [Getting started](./01-getting-started.md#two-config-files-not-one)).
 
 Each route node accepts either a string (`= path`, enabled) or an object
 `{ path: ..., enabled: false }`. `enabled: false` skips the bundled route

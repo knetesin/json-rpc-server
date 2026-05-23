@@ -11,8 +11,9 @@
         "<bg=blue;fg=white>  JsonRpc Server — JSON-RPC 2.0 for Symfony is ready to use     </>",
         "<bg=blue;fg=white>                                                                </>",
         "",
-        "  <fg=green>•</> Routes: <fg=yellow>/rpc</>, <fg=yellow>/rpc/stream</>, MCP <fg=yellow>/mcp/*</>",
         "  <fg=green>•</> Config: <fg=yellow>config/packages/json_rpc_server.yaml</>",
+        "  <fg=green>•</> Routes import: <fg=yellow>config/routes/json_rpc_server.yaml</> (required — paths live in packages config)",
+        "  <fg=green>•</> Default paths: <fg=yellow>/rpc</>, <fg=yellow>/rpc/stream</> (MCP <fg=yellow>/mcp/*</> off — flip <fg=yellow>mcp.enabled: true</>; OpenRPC <fg=yellow>/rpc.openrpc.json</> dev-only)",
         "  <fg=green>•</> Handlers: <fg=yellow>#[JsonRpcServer\\Attribute\\Method('name')]</> on invokable classes",
         ""
     ]

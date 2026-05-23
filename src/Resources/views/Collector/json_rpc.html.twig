@@ -5,7 +5,7 @@
 {% block menu %}
     {% set call_count = collector.callCount %}
     <span class="label {{ call_count > 0 ? '' : 'disabled' }} {{ collector.hasError ? 'label-status-red' : (call_count > 0 ? 'label-status-green' : '') }}">
-        <span class="icon">{{ source('@JsonRpcBundle/Resources/views/Collector/icon.svg') }}</span>
+        <span class="icon">{{ source('@JsonRpcServer/Collector/icon.svg') }}</span>
         <strong>RPC</strong>
         {% if call_count > 0 %}
             <span class="count">
@@ -19,7 +19,7 @@
     {% set call_count = collector.callCount %}
     {% if call_count > 0 %}
         {% set icon %}
-            {{ source('@JsonRpcBundle/Resources/views/Collector/icon.svg') }}
+            {{ source('@JsonRpcServer/Collector/icon.svg') }}
             <span class="sf-toolbar-value">{{ call_count }}</span>
             <span class="sf-toolbar-info-piece-additional-detail">
                 <span class="sf-toolbar-label">in</span>

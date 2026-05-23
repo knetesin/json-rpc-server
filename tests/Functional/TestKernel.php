@@ -79,8 +79,19 @@ final class TestKernel extends Kernel
         ]);
 
         // Tag-aware default pool so cache invalidation tests have a backend
-        // that supports tag invalidation. User-passed rpcConfig wins.
-        $rpcDefaults = ['cache' => ['default_pool' => 'rpc.test.cache.app']];
+        // that supports tag invalidation. MCP is opt-in at the bundle level
+        // (default off), but every MCP test depends on the routes/services
+        // being live — enable it across the test suite, individual tests can
+        // still flip it back via rpcConfig (e.g. testMcpDisabledRemovesServices).
+        // User-passed rpcConfig wins via array_replace_recursive.
+        $rpcDefaults = [
+            'cache' => ['default_pool' => 'rpc.test.cache.app'],
+            'mcp' => ['enabled' => true],
+            // Stream endpoint is opt-in at the bundle level (default off).
+            // Fixture handlers include #[Stream] methods, so enable here;
+            // individual tests can still flip it back via rpcConfig.
+            'routes' => ['stream' => ['enabled' => true]],
+        ];
         $container->extension('json_rpc_server', array_replace_recursive($rpcDefaults, $this->rpcConfig));
 
         $container->services()

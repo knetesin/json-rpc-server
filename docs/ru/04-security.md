@@ -10,7 +10,7 @@
 
 ## Публичные методы
 
-Опустите `roles` — диспатчер пропускает авторизацию совсем:
+По умолчанию: если опустить `roles` — диспатчер пропускает авторизацию совсем:
 
 ```php
 #[Rpc\Method('public.ping')]
@@ -22,6 +22,11 @@ final class Ping
 
 Анонимные запросы проходят, **при условии что ваш firewall тоже их пускает
 на `/rpc`.**
+
+> **Secure-by-default режим.** Задайте `security.default_roles`
+> (см. [Configuration reference](./13-configuration.md#securitydefault_roles--public_prefixes--public_methods)) —
+> тогда любой метод без явного `roles:` наследует эти роли, а анонимными
+> остаются только перечисленные в `public_prefixes` / `public_methods`.
 
 ## Защищённые методы
 

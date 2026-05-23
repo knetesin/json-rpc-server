@@ -18,9 +18,24 @@ without duplicate code paths.
 { "name": "user.get", "arguments": { "email": "x@y" } }
 ```
 
-## Opting in
+## Enabling MCP
 
-By default, only methods with `#[Rpc\Mcp]` are exposed:
+MCP is **off by default** — `/mcp/tools` and `/mcp/call` are not registered
+until you turn it on:
+
+```yaml
+json_rpc_server:
+  mcp:
+    enabled: true
+```
+
+The Flex recipe ships with `mcp.enabled: false` for the same reason: most
+projects don't consume MCP, and a live `/mcp/tools` endpoint is a small
+fingerprinting surface for anonymous callers.
+
+## Opting in methods
+
+Once MCP is enabled, only methods with `#[Rpc\Mcp]` are exposed:
 
 ```php
 #[Rpc\Method('user.get')]
@@ -62,14 +77,17 @@ attribute — the deployment owner gets the final say.
 
 ## Disabling MCP entirely
 
+`mcp.enabled: false` (the default) removes the routes and services. To turn
+it back off after enabling:
+
 ```yaml
 json_rpc_server:
   mcp:
     enabled: false
 ```
 
-Removes the routes and services. `JsonSchemaBuilder` stays available so
-`debug:rpc --openrpc` still works.
+`JsonSchemaBuilder` stays available either way, so `debug:rpc --openrpc`
+still works.
 
 ## Input schema
 

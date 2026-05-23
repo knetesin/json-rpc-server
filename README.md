@@ -101,6 +101,7 @@ once GitHub Pages is enabled on the `docs/` folder.
 - PHP **8.3+** (typed class constants are used throughout)
 - Symfony **7.x** or **8.x**
 - `ext-json`
+- `symfony/expression-language` (route `condition`s for per-route enable flags)
 
 Optional packages (everything degrades gracefully when absent — the container
 build fails loudly only if you reference a feature whose package is missing):
@@ -123,8 +124,13 @@ build fails loudly only if you reference a feature whose package is missing):
 composer require knetesin/json-rpc-server
 ```
 
-With **Symfony Flex** the bundle auto-registers itself, drops a default
-`config/packages/json_rpc_server.yaml`, and wires the routes file. Without Flex:
+With **Symfony Flex** the bundled recipe should create **two** files:
+`config/packages/json_rpc_server.yaml` (settings) and
+`config/routes/json_rpc_server.yaml` (route import — **required** for
+`debug:router` to show `/rpc`). The recipe ships in the package (`.symfony/recipe/`);
+if `composer require` did not copy them, see [Getting started](docs/en/01-getting-started.md#two-config-files-not-one).
+
+Without Flex (or if the recipe was skipped), add manually:
 
 ```php
 // config/bundles.php

@@ -5,6 +5,7 @@
 - PHP 8.3+ (бандл использует типизированные константы классов)
 - Symfony 7.x или 8.x
 - `ext-json`
+- `symfony/expression-language` (нужен для `condition` на маршрутах — тянется с бандлом)
 
 Опциональные пакеты (`composer suggest`):
 
@@ -23,37 +24,89 @@
 composer require knetesin/json-rpc-server
 ```
 
-С Symfony Flex бандл регистрируется автоматически. Без Flex добавьте в
-`config/bundles.php`:
+В приложении нужны:
+
+- `symfony/flex` (рекомендуется) — на `composer require` применяет recipe из пакета
+- `symfony/routing` — импорт маршрутов (см. ниже)
+
+### Два файла конфигурации (не один)
+
+Бандлу нужны **оба** файла — у них разные задачи:
+
+| Файл | Зачем |
+|---|---|
+| `config/packages/json_rpc_server.yaml` | Настройки бандла (пути, MCP, кэш, …) |
+| `config/routes/json_rpc_server.yaml` | **Регистрирует** HTTP-маршруты в Symfony |
+
+Правка `json_rpc_server.routes` только в **packages** меняет пути у уже
+импортированных маршрутов — сами маршруты этим файлом **не появляются**.
+
+**С Symfony Flex** recipe из пакета (`.symfony/recipe/`) при первом
+`composer require` должен скопировать оба файла:
+
+```
+config/packages/json_rpc_server.yaml
+config/routes/json_rpc_server.yaml
+```
+
+**Если recipe не сработал** (нет `config/routes/json_rpc_server.yaml` или нет
+записи в `symfony.lock` для `knetesin/json-rpc-server`) — добавьте вручную:
 
 ```php
+// config/bundles.php
 return [
     // ...
     JsonRpcServer\JsonRpcServerBundle::class => ['all' => true],
 ];
 ```
 
-## Минимальная конфигурация
-
-Zero config работает из коробки. Все дефолты документированы в
-[Configuration reference](./13-configuration.md). Для первого запуска создайте
-пустой файл:
+```yaml
+# config/routes/json_rpc_server.yaml  ← обязателен
+json_rpc_server:
+    resource: '@JsonRpcServerBundle/Resources/config/routes.php'
+    type: php
+```
 
 ```yaml
 # config/packages/json_rpc_server.yaml
 json_rpc_server: ~
 ```
 
-Бандл регистрирует четыре роута:
+Затем:
 
-| Route | Path | Метод |
-|---|---|---|
-| `rpc` | `/rpc` | POST |
-| `rpc_stream` | `/rpc/stream` | POST |
-| `rpc_mcp_tools` | `/mcp/tools` | GET |
-| `rpc_mcp_call` | `/mcp/call` | POST |
+```bash
+composer recipes:install knetesin/json-rpc-server --force -v
+# или (старый Flex): composer symfony:recipes:install knetesin/json-rpc-server --force -v
+bin/console cache:clear
+bin/console debug:router | grep rpc
+```
 
-Пути можно переопределить через `rpc.routes` или отключить любой из них.
+> Recipe лежит **внутри Composer-пакета** (`.symfony/recipe/`), а не в
+> `symfony/recipes-contrib` — на части проектов он срабатывает только при
+> установке из `vendor/`. Ручные файлы выше работают всегда.
+
+## Маршруты и пути
+
+Пути по умолчанию (после импорта routes-файла):
+
+| Route | Path | Метод | Дефолт |
+|---|---|---|---|
+| `rpc` | `/rpc` | POST | включён |
+| `rpc_stream` | `/rpc/stream` | POST | **выключен** — поставьте `routes.stream.enabled: true` если используете `#[Rpc\Stream]` |
+| `rpc_mcp_tools` | `/mcp/tools` | GET | **выключен** — поставьте `mcp.enabled: true` |
+| `rpc_mcp_call` | `/mcp/call` | POST | **выключен** — поставьте `mcp.enabled: true` |
+| `rpc_openrpc` | `/rpc.openrpc.json` | GET | **выключен** — поставьте `routes.openrpc.enabled: true` чтобы публиковать |
+
+Переопределение в **packages**:
+
+```yaml
+# config/packages/json_rpc_server.yaml
+json_rpc_server:
+    routes:
+        mcp_tools: { path: /mcp2/tools, enabled: true }
+```
+
+Все опции — в [Configuration reference](./13-configuration.md).
 
 ## Первый handler
 
