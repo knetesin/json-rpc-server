@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\DependencyInjection;
+namespace Knetesin\JsonRpcServerBundle\DependencyInjection;
 
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -48,7 +48,7 @@ final class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->arrayNode('context')
-                    ->info('Settings for `JsonRpcServer\\Context\\Context` injected into handlers.')
+                    ->info('Settings for `Knetesin\\JsonRpcServerBundle\\Context\\Context` injected into handlers.')
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->scalarNode('request_id_header')
@@ -343,7 +343,7 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                         ->scalarNode('budget_store')
                             ->defaultValue('apcu')
-                            ->info('Backing store for the system-wide budget counter. "apcu" uses PHP\'s APCu extension (lock-free, shared across the FPM master\'s children). "null" disables the global cap entirely. Custom: service id implementing JsonRpcServer\\Batch\\BudgetTrackerInterface.')
+                            ->info('Backing store for the system-wide budget counter. "apcu" uses PHP\'s APCu extension (lock-free, shared across the FPM master\'s children). "null" disables the global cap entirely. Custom: service id implementing Knetesin\\JsonRpcServerBundle\\Batch\\BudgetTrackerInterface.')
                         ->end()
                         ->integerNode('max_depth')
                             ->defaultValue(1)
@@ -428,12 +428,12 @@ final class Configuration implements ConfigurationInterface
                             ->info('Fully-qualified exception classes whose failures should NOT mark the span as ERROR or bump the error counter. Defaults to the standard client-side RPC errors so they do not pollute SLO dashboards.')
                             ->scalarPrototype()->end()
                             ->defaultValue([
-                                'JsonRpcServer\\Exception\\InvalidParamsException',
-                                'JsonRpcServer\\Exception\\InvalidRequestException',
-                                'JsonRpcServer\\Exception\\MethodNotFoundException',
-                                'JsonRpcServer\\Exception\\ParseException',
-                                'JsonRpcServer\\Exception\\AccessDeniedException',
-                                'JsonRpcServer\\Exception\\RateLimitExceededException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\InvalidParamsException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\InvalidRequestException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\MethodNotFoundException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\ParseException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\AccessDeniedException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\RateLimitExceededException',
                             ])
                         ->end()
                     ->end()
@@ -462,12 +462,12 @@ final class Configuration implements ConfigurationInterface
                             ->info('Fully-qualified exception classes whose `failed` events should NOT produce breadcrumbs / spans (client-side errors that pollute Sentry: InvalidParams, AccessDenied, MethodNotFound, RateLimitExceeded — useful defaults below). Children-class matches too.')
                             ->scalarPrototype()->end()
                             ->defaultValue([
-                                'JsonRpcServer\\Exception\\InvalidParamsException',
-                                'JsonRpcServer\\Exception\\InvalidRequestException',
-                                'JsonRpcServer\\Exception\\MethodNotFoundException',
-                                'JsonRpcServer\\Exception\\ParseException',
-                                'JsonRpcServer\\Exception\\AccessDeniedException',
-                                'JsonRpcServer\\Exception\\RateLimitExceededException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\InvalidParamsException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\InvalidRequestException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\MethodNotFoundException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\ParseException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\AccessDeniedException',
+                                'Knetesin\\JsonRpcServerBundle\\Exception\\RateLimitExceededException',
                             ])
                         ->end()
                     ->end()

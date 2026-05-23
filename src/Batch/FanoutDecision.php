@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Batch;
+namespace Knetesin\JsonRpcServerBundle\Batch;
 
 /**
  * Why a given batch ran in the mode it did. Emitted on the dispatch event

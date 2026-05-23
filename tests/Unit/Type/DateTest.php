@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Type;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Type;
 
-use JsonRpcServer\Type\Date;
+use Knetesin\JsonRpcServerBundle\Type\Date;
 use PHPUnit\Framework\TestCase;
 
 final class DateTest extends TestCase

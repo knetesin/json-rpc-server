@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Dispatcher;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Dispatcher;
 
-use JsonRpcServer\Attribute\RoleMatch;
-use JsonRpcServer\Dispatcher\Dispatcher;
-use JsonRpcServer\Exception\AccessDeniedException;
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
+use Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 

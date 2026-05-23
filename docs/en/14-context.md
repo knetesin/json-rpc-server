@@ -4,7 +4,7 @@
 a typed parameter:
 
 ```php
-use JsonRpcServer\Context\Context;
+use Knetesin\JsonRpcServerBundle\Context\Context;
 
 #[Rpc\Method('user.profile')]
 final class GetProfile

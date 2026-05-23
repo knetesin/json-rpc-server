@@ -181,16 +181,16 @@ JSON envelope'а:
 
 | Тип | Что это |
 |---|---|
-| `JsonRpcServer\Context\Context` | Per-call context: `methodName`, `requestId`, `user`, `roles`. См. [Context](./14-context.md). |
+| `Knetesin\JsonRpcServerBundle\Context\Context` | Per-call context: `methodName`, `requestId`, `user`, `roles`. См. [Context](./14-context.md). |
 | `Symfony\Component\HttpFoundation\Request` | HTTP-запрос. Берётся из `RequestStack`. Бросает если нет активного запроса (например, в unit-тесте вне контекста). |
-| `JsonRpcServer\Request\RpcRequest` | Декодированный JSON-RPC envelope. |
+| `Knetesin\JsonRpcServerBundle\Request\RpcRequest` | Декодированный JSON-RPC envelope. |
 
 Можно сочетать — `__invoke(MyDto $req, Context $ctx, Request $http)`
 работает.
 
 ## Даты и date-time
 
-Бандл поставляется с `JsonRpcServer\Type\Date` для "даты без времени" (PHP
+Бандл поставляется с `Knetesin\JsonRpcServerBundle\Type\Date` для "даты без времени" (PHP
 такого типа не имеет):
 
 ```php

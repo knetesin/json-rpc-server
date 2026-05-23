@@ -1,5 +1,5 @@
 ###> knetesin/json-rpc-server ###
 json_rpc_server:
-    resource: '@JsonRpcServerBundle/Resources/config/routes.php'
+    resource: '@KnetesinJsonRpcServerBundle/Resources/config/routes.php'
     type: php
 ###< knetesin/json-rpc-server ###

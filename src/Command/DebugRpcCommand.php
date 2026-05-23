@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Command;
+namespace Knetesin\JsonRpcServerBundle\Command;
 
-use JsonRpcServer\Exception\MethodNotFoundException;
-use JsonRpcServer\Mcp\JsonSchemaBuilder;
-use JsonRpcServer\Mcp\McpToolFilter;
-use JsonRpcServer\OpenRpc\OpenRpcDocumentBuilder;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\MethodRegistry;
+use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
+use Knetesin\JsonRpcServerBundle\OpenRpc\OpenRpcDocumentBuilder;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

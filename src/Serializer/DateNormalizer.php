@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Serializer;
+namespace Knetesin\JsonRpcServerBundle\Serializer;
 
-use JsonRpcServer\Type\Date;
+use Knetesin\JsonRpcServerBundle\Type\Date;
 use Symfony\Component\Serializer\Exception\InvalidArgumentException;
 use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;

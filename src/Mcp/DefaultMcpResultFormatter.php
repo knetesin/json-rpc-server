@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Mcp;
 
-use JsonRpcServer\Attribute\McpFormat;
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Attribute\McpFormat;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 
 /**
  * Renders RPC results into MCP content blocks. The format is picked per-method

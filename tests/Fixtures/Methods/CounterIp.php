@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Cache\Scope\IpScope;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Cache\Scope\IpScope;
 
 #[Rpc\Method('cache.counter_ip')]
 #[Rpc\Cache(ttl: 60, scope: IpScope::class)]

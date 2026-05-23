@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
 
 /** Uses global json_rpc_server.security.roles_match: all (no per-method rolesMatch). */
 #[Rpc\Method('test.roleConfigAll', roles: ['ROLE_A', 'ROLE_B'])]

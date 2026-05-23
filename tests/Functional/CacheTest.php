@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Functional;
+namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
-use JsonRpcServer\Cache\RpcCacheInvalidator;
-use JsonRpcServer\Tests\Fixtures\Methods\CounterGlobal;
-use JsonRpcServer\Tests\Fixtures\Methods\CounterIp;
-use JsonRpcServer\Tests\Fixtures\Methods\CounterParam;
-use JsonRpcServer\Tests\Fixtures\Methods\CounterVary;
+use Knetesin\JsonRpcServerBundle\Cache\RpcCacheInvalidator;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterGlobal;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterIp;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterParam;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterVary;
 use Symfony\Component\HttpFoundation\Request;
 
 final class CacheTest extends KernelTestCase

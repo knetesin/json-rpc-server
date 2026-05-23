@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
-use JsonRpcServer\Logging\RpcLoggingSubscriber;
+use Knetesin\JsonRpcServerBundle\Logging\RpcLoggingSubscriber;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services();

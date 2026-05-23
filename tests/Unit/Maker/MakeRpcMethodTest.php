@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Maker;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Maker;
 
-use JsonRpcServer\Maker\MakeRpcMethod;
+use Knetesin\JsonRpcServerBundle\Maker\MakeRpcMethod;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\MakerBundle\Maker\AbstractMaker;

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Registry;
+namespace Knetesin\JsonRpcServerBundle\Registry;
 
-use JsonRpcServer\Attribute\Cache;
-use JsonRpcServer\Attribute\McpFormat;
-use JsonRpcServer\Attribute\RateLimit;
-use JsonRpcServer\Attribute\RoleMatch;
-use JsonRpcServer\Attribute\StreamFormat;
+use Knetesin\JsonRpcServerBundle\Attribute\Cache;
+use Knetesin\JsonRpcServerBundle\Attribute\McpFormat;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimit;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
 
 final readonly class MethodMetadata
 {

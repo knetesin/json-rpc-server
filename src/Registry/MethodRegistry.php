@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Registry;
+namespace Knetesin\JsonRpcServerBundle\Registry;
 
-use JsonRpcServer\Attribute\Cache;
-use JsonRpcServer\Attribute\McpFormat;
-use JsonRpcServer\Attribute\RateLimit;
-use JsonRpcServer\Attribute\RateLimitPolicy;
-use JsonRpcServer\Attribute\RateLimitScope;
-use JsonRpcServer\Attribute\RoleMatch;
-use JsonRpcServer\Attribute\StreamFormat;
-use JsonRpcServer\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Attribute\Cache;
+use Knetesin\JsonRpcServerBundle\Attribute\McpFormat;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimit;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitPolicy;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitScope;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
+use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -21,7 +21,7 @@ final class MethodRegistry
 {
     /**
      * Depth used to decode the precomputed `inputSchemaJson`. The schema
-     * is produced at compile time by {@see \JsonRpcServer\Mcp\JsonSchemaBuilder}
+     * is produced at compile time by {@see \Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder}
      * and bounded by `json_rpc_server.mcp.schema_max_depth` (default 6).
      * Each DTO nesting level contributes ~3 JSON levels (`properties` →
      * field → `properties` → …), so 64 leaves comfortable headroom for the

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Batch;
+namespace Knetesin\JsonRpcServerBundle\Batch;
 
 /**
  * APCu-backed system-wide budget tracker. Lock-free CAS / inc / dec primitives

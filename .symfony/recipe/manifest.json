@@ -1,6 +1,6 @@
 {
     "bundles": {
-        "JsonRpcServer\\JsonRpcServerBundle": ["all"]
+        "Knetesin\\JsonRpcServerBundle\\KnetesinJsonRpcServerBundle": ["all"]
     },
     "copy-from-recipe": {
         "config/packages/json_rpc_server.yaml": "%CONFIG_DIR%/packages/json_rpc_server.yaml",
@@ -14,7 +14,7 @@
         "  <fg=green>•</> Config: <fg=yellow>config/packages/json_rpc_server.yaml</>",
         "  <fg=green>•</> Routes import: <fg=yellow>config/routes/json_rpc_server.yaml</> (required — paths live in packages config)",
         "  <fg=green>•</> Default paths: <fg=yellow>/rpc</>, <fg=yellow>/rpc/stream</> (MCP <fg=yellow>/mcp/*</> off — flip <fg=yellow>mcp.enabled: true</>; OpenRPC <fg=yellow>/rpc.openrpc.json</> dev-only)",
-        "  <fg=green>•</> Handlers: <fg=yellow>#[JsonRpcServer\\Attribute\\Method('name')]</> on invokable classes",
+        "  <fg=green>•</> Handlers: <fg=yellow>#[Knetesin\\JsonRpcServerBundle\\Attribute\\Method('name')]</> on invokable classes",
         ""
     ]
 }

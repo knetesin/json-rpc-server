@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Batch;
+namespace Knetesin\JsonRpcServerBundle\Batch;
 
 /**
  * System-wide concurrency budget for parallel-batch fan-out.

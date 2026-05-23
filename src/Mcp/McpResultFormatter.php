@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Mcp;
 
-use JsonRpcServer\Attribute\McpFormat;
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Attribute\McpFormat;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 
 /**
  * Turns a normalized RPC result into the `content[]` array of an MCP
@@ -18,7 +18,7 @@ use JsonRpcServer\Registry\MethodMetadata;
  * Replace the default via a service alias:
  *
  *     services:
- *         JsonRpcServer\Mcp\McpResultFormatter:
+ *         Knetesin\JsonRpcServerBundle\Mcp\McpResultFormatter:
  *             alias: App\Rpc\MyFormatter
  */
 interface McpResultFormatter

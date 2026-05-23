@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\OpenRpc;
+namespace Knetesin\JsonRpcServerBundle\OpenRpc;
 
-use JsonRpcServer\Mcp\JsonSchemaBuilder;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\MethodRegistry;
-use JsonRpcServer\Registry\ParameterMetadata;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
+use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
 
 /**
  * Builds an OpenRPC 1.3.2 document from the bundle's MethodRegistry.

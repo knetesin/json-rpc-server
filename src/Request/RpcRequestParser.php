@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Request;
+namespace Knetesin\JsonRpcServerBundle\Request;
 
-use JsonRpcServer\Exception\InvalidRequestException;
-use JsonRpcServer\Exception\ParseException;
-use JsonRpcServer\Exception\RequestTooLargeException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
+use Knetesin\JsonRpcServerBundle\Exception\ParseException;
+use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
 
 final class RpcRequestParser
 {

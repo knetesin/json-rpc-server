@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Exception;
+namespace Knetesin\JsonRpcServerBundle\Exception;
 
 /**
  * Base class for any exception that should be surfaced to the client as a

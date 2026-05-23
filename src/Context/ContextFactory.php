@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Context;
+namespace Knetesin\JsonRpcServerBundle\Context;
 
-use JsonRpcServer\Security\SecurityUserResolver;
+use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 final class ContextFactory

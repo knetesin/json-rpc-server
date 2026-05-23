@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Attribute;
+namespace Knetesin\JsonRpcServerBundle\Attribute;
 
 /**
  * Marks an `__invoke()` parameter as a JSON-RPC param. Use when you do not

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Context\Context;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Context\Context;
 
 #[Rpc\Method('test.echo')]
 #[Rpc\Mcp(description: 'Echoes the message back.')]

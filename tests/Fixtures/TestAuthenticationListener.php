@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures;
 
 use Symfony\Bundle\FrameworkBundle\Test\TestBrowserToken;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Attribute;
+namespace Knetesin\JsonRpcServerBundle\Attribute;
 
 /**
  * Overrides the per-method request body limit. Use it to allow a single

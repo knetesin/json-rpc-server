@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\OpenTelemetry;
+namespace Knetesin\JsonRpcServerBundle\OpenTelemetry;
 
-use JsonRpcServer\Event\BatchDispatchedEvent;
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
-use JsonRpcServer\Event\StreamIterationCompletedEvent;
-use JsonRpcServer\Event\StreamIterationFailedEvent;
-use JsonRpcServer\Event\StreamRowEmittedEvent;
-use JsonRpcServer\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Event\BatchDispatchedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Event\StreamIterationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\StreamIterationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\StreamRowEmittedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;

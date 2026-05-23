@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\RateLimitScope;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitScope;
 
 #[Rpc\Method('test.throttled')]
 #[Rpc\RateLimit(limit: 2, intervalSec: 60, scope: RateLimitScope::GlobalScope)]

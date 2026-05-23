@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Attribute;
+namespace Knetesin\JsonRpcServerBundle\Attribute;
 
 enum RateLimitScope: string
 {

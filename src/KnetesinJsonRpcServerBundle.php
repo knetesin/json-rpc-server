@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer;
+namespace Knetesin\JsonRpcServerBundle;
 
-use JsonRpcServer\DependencyInjection\Compiler\MethodCompilerPass;
-use JsonRpcServer\DependencyInjection\RpcExtension;
+use Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler\MethodCompilerPass;
+use Knetesin\JsonRpcServerBundle\DependencyInjection\RpcExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 
-final class JsonRpcServerBundle extends Bundle
+final class KnetesinJsonRpcServerBundle extends Bundle
 {
     public function build(ContainerBuilder $container): void
     {

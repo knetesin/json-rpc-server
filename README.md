@@ -136,14 +136,14 @@ Without Flex (or if the recipe was skipped), add manually:
 // config/bundles.php
 return [
     // ...
-    JsonRpcServer\JsonRpcServerBundle::class => ['all' => true],
+    Knetesin\JsonRpcServerBundle\KnetesinJsonRpcServerBundle::class => ['all' => true],
 ];
 ```
 
 ```yaml
 # config/routes/json_rpc_server.yaml
 json_rpc_server:
-    resource: '@JsonRpcServerBundle/Resources/config/routes.php'
+    resource: '@KnetesinJsonRpcServerBundle/Resources/config/routes.php'
     type: php
 ```
 
@@ -172,7 +172,7 @@ All paths configurable; any route disable-able via
 
 ```php
 // src/Rpc/Add.php
-use JsonRpcServer\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
 
 #[Rpc\Method('math.add', description: 'Add two integers.')]
 final class Add
@@ -505,8 +505,8 @@ Full reference with every knob's rationale: [`docs/en/13-configuration.md`](docs
 ## Versioning
 
 Semantic Versioning. Anything outside the documented public API
-(`JsonRpcServer\Attribute\*`, `JsonRpcServer\Context\*`,
-`JsonRpcServer\Exception\*`, `JsonRpcServer\Type\*`, event classes,
+(`Knetesin\JsonRpcServerBundle\Attribute\*`, `Knetesin\JsonRpcServerBundle\Context\*`,
+`Knetesin\JsonRpcServerBundle\Exception\*`, `Knetesin\JsonRpcServerBundle\Type\*`, event classes,
 configuration tree) is internal and may change in patch releases.
 
 ---

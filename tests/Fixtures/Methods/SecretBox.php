@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Mcp\McpResultTransformer;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Mcp\McpResultTransformer;
 
 /**
  * RPC-side returns internal fields; MCP transformer strips them so the LLM

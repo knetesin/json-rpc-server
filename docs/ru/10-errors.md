@@ -49,7 +49,7 @@ throw new AccessDeniedException('No access to billing', rpcCode: -33001);
 Наследуйте `RpcException`:
 
 ```php
-use JsonRpcServer\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 
 final class PaymentDeclinedException extends RpcException
 {

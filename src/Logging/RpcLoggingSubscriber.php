@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Logging;
+namespace Knetesin\JsonRpcServerBundle\Logging;
 
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
-use JsonRpcServer\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;

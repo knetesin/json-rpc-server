@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Controller;
+namespace Knetesin\JsonRpcServerBundle\Controller;
 
-use JsonRpcServer\Batch\BudgetTrackerInterface;
-use JsonRpcServer\Batch\FanoutDecision;
-use JsonRpcServer\Batch\ParallelBatchExecutor;
-use JsonRpcServer\Dispatcher\Dispatcher;
-use JsonRpcServer\Event\BatchDispatchedEvent;
-use JsonRpcServer\Exception\InternalErrorException;
-use JsonRpcServer\Exception\MethodNotFoundException;
-use JsonRpcServer\Exception\RateLimitExceededException;
-use JsonRpcServer\Exception\RequestTooLargeException;
-use JsonRpcServer\Exception\RpcErrorEnvelope;
-use JsonRpcServer\Exception\RpcException;
-use JsonRpcServer\Request\RpcRequest;
-use JsonRpcServer\Request\RpcRequestParser;
+use Knetesin\JsonRpcServerBundle\Batch\BudgetTrackerInterface;
+use Knetesin\JsonRpcServerBundle\Batch\FanoutDecision;
+use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
+use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
+use Knetesin\JsonRpcServerBundle\Event\BatchDispatchedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\InternalErrorException;
+use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException;
+use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
+use Knetesin\JsonRpcServerBundle\Exception\RpcErrorEnvelope;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequestParser;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;

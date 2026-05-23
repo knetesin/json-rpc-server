@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Context;
+namespace Knetesin\JsonRpcServerBundle\Context;
 
 use Symfony\Component\Security\Core\User\UserInterface;
 

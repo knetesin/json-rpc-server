@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Request;
+namespace Knetesin\JsonRpcServerBundle\Request;
 
-use JsonRpcServer\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
 
 /**
  * Typed accessor over a JSON-RPC `params` value.

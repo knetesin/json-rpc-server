@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Maker;
+namespace Knetesin\JsonRpcServerBundle\Maker;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Context\Context;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Context\Context;
 use Symfony\Bundle\MakerBundle\ConsoleStyle;
 use Symfony\Bundle\MakerBundle\DependencyBuilder;
 use Symfony\Bundle\MakerBundle\Generator;
@@ -137,7 +137,7 @@ final class MakeRpcMethod extends AbstractMaker
         // UseStatementGenerator doesn't model. Lines are sorted for stable
         // output and to match php-cs-fixer's `ordered_imports` rule.
         $handlerUses = [
-            'use JsonRpcServer\\Attribute as Rpc;',
+            'use Knetesin\JsonRpcServerBundle\\Attribute as Rpc;',
             'use '.Context::class.';',
         ];
         if (null !== $dtoDetails) {

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\McpFormat;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\McpFormat;
 
 #[Rpc\Method('user.list')]
 #[Rpc\Mcp(description: 'Returns a small list of users.', format: McpFormat::Markdown)]

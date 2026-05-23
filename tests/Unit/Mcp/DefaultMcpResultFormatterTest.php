@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Mcp;
 
-use JsonRpcServer\Attribute\McpFormat;
-use JsonRpcServer\Mcp\DefaultMcpResultFormatter;
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Attribute\McpFormat;
+use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use PHPUnit\Framework\TestCase;
 
 final class DefaultMcpResultFormatterTest extends TestCase

@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Dispatcher;
+namespace Knetesin\JsonRpcServerBundle\Dispatcher;
 
-use JsonRpcServer\Attribute\RoleMatch;
-use JsonRpcServer\Cache\CacheChecker;
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
-use JsonRpcServer\Exception\AccessDeniedException;
-use JsonRpcServer\RateLimit\RateLimitChecker;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\MethodRegistry;
-use JsonRpcServer\Request\RpcRequest;
-use JsonRpcServer\Resolver\ArgumentResolver;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Cache\CacheChecker;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException;
+use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitChecker;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Resolver\ArgumentResolver;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;

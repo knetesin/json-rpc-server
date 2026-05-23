@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Cache;
+namespace Knetesin\JsonRpcServerBundle\Cache;
 
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 
 /**
  * One dimension to partition a cached method by — point at it via

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Request;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Request;
 
-use JsonRpcServer\Exception\InvalidParamsException;
-use JsonRpcServer\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
 use PHPUnit\Framework\TestCase;
 
 final class RpcParamsTest extends TestCase

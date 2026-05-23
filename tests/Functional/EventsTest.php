@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Functional;
+namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
 use Symfony\Component\HttpFoundation\Request;
 
 final class EventsTest extends KernelTestCase

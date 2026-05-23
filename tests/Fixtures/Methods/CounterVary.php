@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Tests\Fixtures\Cache\CountryKey;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Cache\CountryKey;
 
 #[Rpc\Method('cache.counter_vary')]
 #[Rpc\Cache(ttl: 60, scope: CountryKey::class)]

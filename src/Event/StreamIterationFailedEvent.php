@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Event;
+namespace Knetesin\JsonRpcServerBundle\Event;
 
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 
 /**
  * Dispatched by StreamController when the iterator throws mid-stream.

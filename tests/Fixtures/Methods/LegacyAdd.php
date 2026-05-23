@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
 
 #[Rpc\Method('math.legacy_add', deprecated: 'Use math.add instead — will be removed in v2.')]
 final class LegacyAdd

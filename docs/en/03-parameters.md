@@ -184,16 +184,16 @@ from the JSON envelope:
 
 | Type | What it is |
 |---|---|
-| `JsonRpcServer\Context\Context` | Per-call context: `methodName`, `requestId`, `user`, `roles`. See [Context](./14-context.md). |
+| `Knetesin\JsonRpcServerBundle\Context\Context` | Per-call context: `methodName`, `requestId`, `user`, `roles`. See [Context](./14-context.md). |
 | `Symfony\Component\HttpFoundation\Request` | The HTTP request. Resolved from `RequestStack`. Throws if there's no active request (e.g. unit test out of context). |
-| `JsonRpcServer\Request\RpcRequest` | The decoded JSON-RPC envelope. |
+| `Knetesin\JsonRpcServerBundle\Request\RpcRequest` | The decoded JSON-RPC envelope. |
 
 You can mix and match — `__invoke(MyDto $req, Context $ctx, Request $http)`
 all work together.
 
 ## Dates and date-times
 
-The bundle ships `JsonRpcServer\Type\Date` for "date without time" (because
+The bundle ships `Knetesin\JsonRpcServerBundle\Type\Date` for "date without time" (because
 PHP doesn't have one):
 
 ```php

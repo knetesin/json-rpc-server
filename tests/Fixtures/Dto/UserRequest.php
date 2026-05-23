@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Dto;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto;
 
-use JsonRpcServer\Type\Date;
+use Knetesin\JsonRpcServerBundle\Type\Date;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final readonly class UserRequest

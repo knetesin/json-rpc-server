@@ -221,7 +221,7 @@ public function __invoke(RpcRequest $req, Context $ctx): array
 }
 ```
 
-`JsonRpcServer\Request\RpcRequest` is also injectable.
+`Knetesin\JsonRpcServerBundle\Request\RpcRequest` is also injectable.
 
 ### One method, multiple shapes
 

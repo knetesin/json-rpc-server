@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Request;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Request;
 
-use JsonRpcServer\Exception\InvalidRequestException;
-use JsonRpcServer\Exception\ParseException;
-use JsonRpcServer\Exception\RequestTooLargeException;
-use JsonRpcServer\Request\RpcRequestParser;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
+use Knetesin\JsonRpcServerBundle\Exception\ParseException;
+use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequestParser;
 use PHPUnit\Framework\TestCase;
 
 final class RpcRequestParserTest extends TestCase

@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\DependencyInjection\Compiler;
+namespace Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler;
 
-use JsonRpcServer\Attribute\Cache as RpcCache;
-use JsonRpcServer\Attribute\MaxRequestSize as RpcMaxRequestSize;
-use JsonRpcServer\Attribute\Mcp as RpcMcp;
-use JsonRpcServer\Attribute\Method as RpcMethod;
-use JsonRpcServer\Attribute\Param as RpcParam;
-use JsonRpcServer\Attribute\RateLimit as RpcRateLimit;
-use JsonRpcServer\Attribute\RoleMatch;
-use JsonRpcServer\Attribute\Stream as RpcStream;
-use JsonRpcServer\Cache\CacheChecker;
-use JsonRpcServer\Cache\Scope\IpScope;
-use JsonRpcServer\Cache\Scope\UserScope;
-use JsonRpcServer\Context\Context;
-use JsonRpcServer\Mcp\JsonSchemaBuilder;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\MethodRegistry;
-use JsonRpcServer\Registry\ParameterMetadata;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Attribute\Cache as RpcCache;
+use Knetesin\JsonRpcServerBundle\Attribute\MaxRequestSize as RpcMaxRequestSize;
+use Knetesin\JsonRpcServerBundle\Attribute\Mcp as RpcMcp;
+use Knetesin\JsonRpcServerBundle\Attribute\Method as RpcMethod;
+use Knetesin\JsonRpcServerBundle\Attribute\Param as RpcParam;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimit as RpcRateLimit;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Attribute\Stream as RpcStream;
+use Knetesin\JsonRpcServerBundle\Cache\CacheChecker;
+use Knetesin\JsonRpcServerBundle\Cache\Scope\IpScope;
+use Knetesin\JsonRpcServerBundle\Cache\Scope\UserScope;
+use Knetesin\JsonRpcServerBundle\Context\Context;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
+use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;

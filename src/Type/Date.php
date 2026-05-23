@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Type;
+namespace Knetesin\JsonRpcServerBundle\Type;
 
 /**
  * Date-only value object. The wire format used by the JSON-RPC layer is

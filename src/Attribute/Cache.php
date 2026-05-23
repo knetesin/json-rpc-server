@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Attribute;
+namespace Knetesin\JsonRpcServerBundle\Attribute;
 
 /**
  * Caches the result of a method for `ttl` seconds. On a cache hit the
@@ -16,7 +16,7 @@ namespace JsonRpcServer\Attribute;
  *     preserved).
  *
  * `scope` is the FQCN of a service implementing
- * `JsonRpcServer\Cache\CacheScope`. The bundle ships two:
+ * `Knetesin\JsonRpcServerBundle\Cache\CacheScope`. The bundle ships two:
  *   - `UserScope`  — partitions by Symfony user identifier
  *   - `IpScope`    — partitions by client IP
  * Provide your own (country, tenant, locale, A/B segment) by implementing
@@ -35,7 +35,7 @@ final class Cache
 {
     /**
      * @param list<string> $tags additional cache tags attached on store. Combined with the
-     *                           automatic tag `rpc.method:{name}` so {@see \JsonRpcServer\Cache\RpcCacheInvalidator}
+     *                           automatic tag `rpc.method:{name}` so {@see \Knetesin\JsonRpcServerBundle\Cache\RpcCacheInvalidator}
      *                           can stamp out the whole method by name (or by your custom
      *                           label) without scanning. Requires a tag-aware pool —
      *                           tags are silently ignored on plain PSR-6 backends.

@@ -64,12 +64,12 @@
     },
     "autoload": {
         "psr-4": {
-            "JsonRpcServer\\": "src/"
+            "Knetesin\\JsonRpcServerBundle\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "JsonRpcServer\\Tests\\": "tests/"
+            "Knetesin\\JsonRpcServerBundle\\Tests\\": "tests/"
         }
     },
     "config": {
@@ -98,7 +98,7 @@
         "symfony": {
             "require": "7.0|8.0",
             "bundle": {
-                "JsonRpcServer\\JsonRpcServerBundle": ["all"]
+                "Knetesin\\JsonRpcServerBundle\\KnetesinJsonRpcServerBundle": ["all"]
             }
         },
         "branch-alias": {

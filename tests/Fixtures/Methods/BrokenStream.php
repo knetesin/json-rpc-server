@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\StreamFormat;
-use JsonRpcServer\Exception\NotFoundException;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
+use Knetesin\JsonRpcServerBundle\Exception\NotFoundException;
 
 #[Rpc\Method('stream.broken')]
 #[Rpc\Stream(format: StreamFormat::Ndjson)]

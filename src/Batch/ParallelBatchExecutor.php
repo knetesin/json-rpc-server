@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Batch;
+namespace Knetesin\JsonRpcServerBundle\Batch;
 
-use JsonRpcServer\Exception\InternalErrorException;
-use JsonRpcServer\Exception\RpcErrorEnvelope;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Exception\InternalErrorException;
+use Knetesin\JsonRpcServerBundle\Exception\RpcErrorEnvelope;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
@@ -36,7 +36,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
  *
  * This class is the **fan-out implementation only**. The decision of
  * whether to fan out or not is made one layer up in
- * {@see \JsonRpcServer\Controller\RpcController}; this class is invoked
+ * {@see \Knetesin\JsonRpcServerBundle\Controller\RpcController}; this class is invoked
  * only when that decision is "Parallel".
  */
 final class ParallelBatchExecutor

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Cache\Scope;
+namespace Knetesin\JsonRpcServerBundle\Cache\Scope;
 
-use JsonRpcServer\Cache\CacheScope;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Cache\CacheScope;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**

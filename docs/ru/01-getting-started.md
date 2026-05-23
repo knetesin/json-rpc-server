@@ -56,14 +56,14 @@ config/routes/json_rpc_server.yaml
 // config/bundles.php
 return [
     // ...
-    JsonRpcServer\JsonRpcServerBundle::class => ['all' => true],
+    Knetesin\JsonRpcServerBundle\KnetesinJsonRpcServerBundle::class => ['all' => true],
 ];
 ```
 
 ```yaml
 # config/routes/json_rpc_server.yaml  ← обязателен
 json_rpc_server:
-    resource: '@JsonRpcServerBundle/Resources/config/routes.php'
+    resource: '@KnetesinJsonRpcServerBundle/Resources/config/routes.php'
     type: php
 ```
 
@@ -119,7 +119,7 @@ declare(strict_types=1);
 
 namespace App\Rpc;
 
-use JsonRpcServer\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
 
 #[Rpc\Method('math.add', description: 'Сложить два числа.')]
 final class Add

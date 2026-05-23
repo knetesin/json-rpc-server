@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
 
 #[Rpc\Method('test.roleOr', roles: ['ROLE_ADMIN', 'ROLE_USER'], rolesMatch: RoleMatch::Any)]
 final class RoleOrGate

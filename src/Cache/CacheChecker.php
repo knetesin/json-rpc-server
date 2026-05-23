@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Cache;
+namespace Knetesin\JsonRpcServerBundle\Cache;
 
-use JsonRpcServer\Attribute\Cache as CacheAttr;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Attribute\Cache as CacheAttr;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Psr\Cache\CacheItemPoolInterface;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Cache\Adapter\TagAwareAdapterInterface;

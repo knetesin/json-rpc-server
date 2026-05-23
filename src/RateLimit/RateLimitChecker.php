@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\RateLimit;
+namespace Knetesin\JsonRpcServerBundle\RateLimit;
 
-use JsonRpcServer\Attribute\RateLimit;
-use JsonRpcServer\Attribute\RateLimitPolicy;
-use JsonRpcServer\Attribute\RateLimitScope;
-use JsonRpcServer\Exception\RateLimitExceededException;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Security\SecurityUserResolver;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimit;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitPolicy;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitScope;
+use Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\RateLimiter\RateLimiterFactory;

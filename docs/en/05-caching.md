@@ -6,7 +6,7 @@ Hits skip the handler entirely.
 ## Basic use
 
 ```php
-use JsonRpcServer\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
 
 #[Rpc\Method('weather.get')]
 #[Rpc\Cache(ttl: 300)]                       // 5 minutes
@@ -46,7 +46,7 @@ final class GetMyProfile { /* … */ }
 
 ### Custom scopes
 
-Implement `JsonRpcServer\Cache\CacheScope`:
+Implement `Knetesin\JsonRpcServerBundle\Cache\CacheScope`:
 
 ```php
 final readonly class TenantScope implements CacheScope
@@ -128,7 +128,7 @@ works.
 Inject `RpcCacheInvalidator` to clear entries from application code:
 
 ```php
-use JsonRpcServer\Cache\RpcCacheInvalidator;
+use Knetesin\JsonRpcServerBundle\Cache\RpcCacheInvalidator;
 
 final class UpdateUserHandler
 {

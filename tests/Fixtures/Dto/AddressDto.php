@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Dto;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto;
 
 use Symfony\Component\Validator\Constraints as Assert;
 

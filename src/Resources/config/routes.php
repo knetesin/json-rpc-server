@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Symfony\Component\Routing\Loader\Configurator;
 
-use JsonRpcServer\Controller\McpController;
-use JsonRpcServer\Controller\OpenRpcController;
-use JsonRpcServer\Controller\RpcController;
-use JsonRpcServer\Controller\StreamController;
+use Knetesin\JsonRpcServerBundle\Controller\McpController;
+use Knetesin\JsonRpcServerBundle\Controller\OpenRpcController;
+use Knetesin\JsonRpcServerBundle\Controller\RpcController;
+use Knetesin\JsonRpcServerBundle\Controller\StreamController;
 
 return static function (RoutingConfigurator $routes): void {
     // %json_rpc_server.routes.{name}.enabled% and %json_rpc_server.mcp.enabled% are interpolated at

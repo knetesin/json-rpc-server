@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Event;
+namespace Knetesin\JsonRpcServerBundle\Event;
 
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
 
 final readonly class MethodInvocationStartedEvent
 {

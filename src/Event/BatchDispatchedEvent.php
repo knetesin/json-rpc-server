@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Event;
+namespace Knetesin\JsonRpcServerBundle\Event;
 
-use JsonRpcServer\Batch\FanoutDecision;
+use Knetesin\JsonRpcServerBundle\Batch\FanoutDecision;
 
 /**
  * Dispatched once per batch (or single-call: batchSize=1) after the controller
  * has decided how to execute it and the dispatch finished.
  *
  * Subscribed to by:
- *   - {@see \JsonRpcServer\Profiler\JsonRpcDataCollector} → Web Profiler panel
- *   - {@see \JsonRpcServer\OpenTelemetry\OpenTelemetrySubscriber} → metrics
+ *   - {@see \Knetesin\JsonRpcServerBundle\Profiler\JsonRpcDataCollector} → Web Profiler panel
+ *   - {@see \Knetesin\JsonRpcServerBundle\OpenTelemetry\OpenTelemetrySubscriber} → metrics
  *
  * Subscribers must keep listeners cheap — fires inside the HTTP request path.
  */

@@ -178,8 +178,8 @@ declare(strict_types=1);
 namespace App\Rpc;
 
 use App\Rpc\Dto\UserGetByEmailRequest;
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Context\Context;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Context\Context;
 
 #[Rpc\Method('user.getByEmail')]
 final class UserGetByEmail

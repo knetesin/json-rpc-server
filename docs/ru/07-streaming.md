@@ -23,8 +23,8 @@ json_rpc_server:
 ## Объявление streaming-метода
 
 ```php
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\StreamFormat;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
 
 #[Rpc\Method('chat.stream')]
 #[Rpc\Stream(format: StreamFormat::Sse)]

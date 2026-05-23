@@ -114,12 +114,12 @@ json_rpc_server:
         tag_method: true
         transactions: false
         ignore_exceptions:
-            - JsonRpcServer\Exception\InvalidParamsException
-            - JsonRpcServer\Exception\InvalidRequestException
-            - JsonRpcServer\Exception\MethodNotFoundException
-            - JsonRpcServer\Exception\ParseException
-            - JsonRpcServer\Exception\AccessDeniedException
-            - JsonRpcServer\Exception\RateLimitExceededException
+            - Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException
+            - Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException
+            - Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException
+            - Knetesin\JsonRpcServerBundle\Exception\ParseException
+            - Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException
+            - Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException
 
     opentelemetry:
         enabled: false

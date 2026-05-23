@@ -19,7 +19,7 @@ nothing competes with anything.
 The dispatcher fires three events for every RPC call:
 
 ```php
-namespace JsonRpcServer\Event;
+namespace Knetesin\JsonRpcServerBundle\Event;
 
 final readonly class MethodInvocationStartedEvent {
     public MethodMetadata $method;
@@ -71,8 +71,8 @@ final readonly class StreamIterationFailedEvent {
 ### Writing a subscriber
 
 ```php
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 final class AuditSubscriber implements EventSubscriberInterface
@@ -210,12 +210,12 @@ json_rpc_server:
         tag_method: true        # sets rpc.method tag while a call is in flight
         transactions: false     # child spans for Performance Monitoring
         ignore_exceptions:      # client-side errors stay invisible
-            - JsonRpcServer\Exception\InvalidParamsException
-            - JsonRpcServer\Exception\InvalidRequestException
-            - JsonRpcServer\Exception\MethodNotFoundException
-            - JsonRpcServer\Exception\ParseException
-            - JsonRpcServer\Exception\AccessDeniedException
-            - JsonRpcServer\Exception\RateLimitExceededException
+            - Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException
+            - Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException
+            - Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException
+            - Knetesin\JsonRpcServerBundle\Exception\ParseException
+            - Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException
+            - Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException
 ```
 
 In Sentry every issue from a handler gets:

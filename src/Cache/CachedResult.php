@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Cache;
+namespace Knetesin\JsonRpcServerBundle\Cache;
 
 /**
  * Marker wrapper around a cache hit so callers can distinguish `null` cached

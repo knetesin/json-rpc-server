@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Cache;
+namespace Knetesin\JsonRpcServerBundle\Cache;
 
-use JsonRpcServer\Exception\MethodNotFoundException;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\MethodRegistry;
-use JsonRpcServer\Request\RpcParams;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 

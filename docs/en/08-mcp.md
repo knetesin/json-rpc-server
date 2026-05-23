@@ -150,7 +150,7 @@ When the JSON-RPC response carries fields the LLM shouldn't see (internal IDs,
 debug flags, cache keys), implement `McpResultTransformer` on the handler:
 
 ```php
-use JsonRpcServer\Mcp\McpResultTransformer;
+use Knetesin\JsonRpcServerBundle\Mcp\McpResultTransformer;
 
 #[Rpc\Method('user.getById')]
 #[Rpc\Mcp]

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Mcp;
 
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 
 /**
  * Decides whether a given RPC method should be visible via MCP.

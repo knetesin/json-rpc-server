@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Exception;
+namespace Knetesin\JsonRpcServerBundle\Exception;
 
 /**
  * Builds the JSON-RPC `error` object and its surrounding envelopes.

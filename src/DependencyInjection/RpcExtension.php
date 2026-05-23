@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\DependencyInjection;
+namespace Knetesin\JsonRpcServerBundle\DependencyInjection;
 
-use JsonRpcServer\Attribute\Method as RpcMethod;
-use JsonRpcServer\Batch\ApcuBudgetTracker;
-use JsonRpcServer\Batch\NullBudgetTracker;
-use JsonRpcServer\Batch\ParallelBatchExecutor;
-use JsonRpcServer\Cache\CacheChecker;
-use JsonRpcServer\Controller\McpController;
-use JsonRpcServer\Controller\RpcController;
-use JsonRpcServer\DependencyInjection\Compiler\MethodCompilerPass;
-use JsonRpcServer\Mcp\DefaultMcpResultFormatter;
-use JsonRpcServer\Mcp\McpResultFormatter;
-use JsonRpcServer\Mcp\McpToolFilter;
-use JsonRpcServer\Mcp\McpToolRegistry;
-use JsonRpcServer\RateLimit\RateLimitChecker;
+use Knetesin\JsonRpcServerBundle\Attribute\Method as RpcMethod;
+use Knetesin\JsonRpcServerBundle\Batch\ApcuBudgetTracker;
+use Knetesin\JsonRpcServerBundle\Batch\NullBudgetTracker;
+use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
+use Knetesin\JsonRpcServerBundle\Cache\CacheChecker;
+use Knetesin\JsonRpcServerBundle\Controller\McpController;
+use Knetesin\JsonRpcServerBundle\Controller\RpcController;
+use Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler\MethodCompilerPass;
+use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
+use Knetesin\JsonRpcServerBundle\Mcp\McpResultFormatter;
+use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
+use Knetesin\JsonRpcServerBundle\Mcp\McpToolRegistry;
+use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitChecker;
 use OpenTelemetry\API\Globals as OtelGlobals;
 use Sentry\State\HubInterface;
 use Symfony\Component\Config\FileLocator;
@@ -134,7 +134,7 @@ final class RpcExtension extends Extension
 
         if ($config['logging']['enabled']) {
             $loader->load('services_logging.php');
-            $loggingDef = $container->getDefinition(\JsonRpcServer\Logging\RpcLoggingSubscriber::class);
+            $loggingDef = $container->getDefinition(\Knetesin\JsonRpcServerBundle\Logging\RpcLoggingSubscriber::class);
             if (null !== $config['logging']['channel']) {
                 $loggingDef->setArgument('$logger', new Reference($config['logging']['channel']));
             }
@@ -165,7 +165,7 @@ final class RpcExtension extends Extension
             $methodCalls[0][1] = [$tracerName];
             $meterDef->setMethodCalls($methodCalls);
 
-            $container->getDefinition(\JsonRpcServer\OpenTelemetry\OpenTelemetrySubscriber::class)
+            $container->getDefinition(\Knetesin\JsonRpcServerBundle\OpenTelemetry\OpenTelemetrySubscriber::class)
                 ->setArgument('$traces', $config['opentelemetry']['traces'])
                 ->setArgument('$metrics', $config['opentelemetry']['metrics'])
                 ->setArgument('$propagate', $config['opentelemetry']['propagate_traceparent'])
@@ -182,7 +182,7 @@ final class RpcExtension extends Extension
         // to commit in shared config — dev environments without Sentry just no-op.
         if ($config['sentry']['enabled'] && interface_exists(HubInterface::class)) {
             $loader->load('services_sentry.php');
-            $container->getDefinition(\JsonRpcServer\Sentry\SentryRpcSubscriber::class)
+            $container->getDefinition(\Knetesin\JsonRpcServerBundle\Sentry\SentryRpcSubscriber::class)
                 ->setArgument('$breadcrumbs', $config['sentry']['breadcrumbs'])
                 ->setArgument('$tagMethod', $config['sentry']['tag_method'])
                 ->setArgument('$transactions', $config['sentry']['transactions'])

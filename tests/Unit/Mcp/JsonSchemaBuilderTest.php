@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Mcp;
 
-use JsonRpcServer\Mcp\JsonSchemaBuilder;
-use JsonRpcServer\Tests\Fixtures\Dto\Priority;
-use JsonRpcServer\Tests\Fixtures\Dto\UserRequest;
-use JsonRpcServer\Type\Date;
+use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\Priority;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\UserRequest;
+use Knetesin\JsonRpcServerBundle\Type\Date;
 use PHPUnit\Framework\TestCase;
 
 final class JsonSchemaBuilderTest extends TestCase

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Logging;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Logging;
 
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
-use JsonRpcServer\Exception\InvalidParamsException;
-use JsonRpcServer\Logging\RpcLoggingSubscriber;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Logging\RpcLoggingSubscriber;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LogLevel;

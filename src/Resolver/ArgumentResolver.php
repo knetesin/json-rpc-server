@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Resolver;
+namespace Knetesin\JsonRpcServerBundle\Resolver;
 
-use JsonRpcServer\Context\ContextFactory;
-use JsonRpcServer\Exception\InvalidParamsException;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\ParameterMetadata;
-use JsonRpcServer\Request\RpcParams;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Context\ContextFactory;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Serializer\Exception\ExceptionInterface as SerializerException;
 use Symfony\Component\Serializer\Exception\ExtraAttributesException;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Exception;
+namespace Knetesin\JsonRpcServerBundle\Exception;
 
 class AccessDeniedException extends RpcException
 {

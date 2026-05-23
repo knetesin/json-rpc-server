@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Exception;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Exception;
 
-use JsonRpcServer\Exception\AccessDeniedException;
-use JsonRpcServer\Exception\InternalErrorException;
-use JsonRpcServer\Exception\InvalidParamsException;
-use JsonRpcServer\Exception\InvalidRequestException;
-use JsonRpcServer\Exception\MethodNotFoundException;
-use JsonRpcServer\Exception\NotFoundException;
-use JsonRpcServer\Exception\ParseException;
-use JsonRpcServer\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException;
+use Knetesin\JsonRpcServerBundle\Exception\InternalErrorException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
+use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Exception\NotFoundException;
+use Knetesin\JsonRpcServerBundle\Exception\ParseException;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\ConstraintViolationList;

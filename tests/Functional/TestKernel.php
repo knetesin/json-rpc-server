@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Functional;
+namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
-use JsonRpcServer\JsonRpcServerBundle;
+use Knetesin\JsonRpcServerBundle\KnetesinJsonRpcServerBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
@@ -33,7 +33,7 @@ final class TestKernel extends Kernel
         return [
             new FrameworkBundle(),
             new SecurityBundle(),
-            new JsonRpcServerBundle(),
+            new KnetesinJsonRpcServerBundle(),
         ];
     }
 
@@ -96,13 +96,13 @@ final class TestKernel extends Kernel
 
         $container->services()
             ->defaults()->autowire()->autoconfigure()
-            ->set(\JsonRpcServer\Tests\Fixtures\TestAuthenticationListener::class)
+            ->set(\Knetesin\JsonRpcServerBundle\Tests\Fixtures\TestAuthenticationListener::class)
             ->load(
-                'JsonRpcServer\\Tests\\Fixtures\\Methods\\',
+                'Knetesin\\JsonRpcServerBundle\\Tests\\Fixtures\\Methods\\',
                 __DIR__.'/../Fixtures/Methods/',
             )
             ->load(
-                'JsonRpcServer\\Tests\\Fixtures\\Cache\\',
+                'Knetesin\\JsonRpcServerBundle\\Tests\\Fixtures\\Cache\\',
                 __DIR__.'/../Fixtures/Cache/',
             );
     }

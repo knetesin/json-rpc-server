@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Batch;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Batch;
 
-use JsonRpcServer\Batch\NullBudgetTracker;
+use Knetesin\JsonRpcServerBundle\Batch\NullBudgetTracker;
 use PHPUnit\Framework\TestCase;
 
 final class NullBudgetTrackerTest extends TestCase

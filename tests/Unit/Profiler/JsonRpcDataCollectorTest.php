@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Profiler;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Profiler;
 
-use JsonRpcServer\Profiler\JsonRpcDataCollector;
+use Knetesin\JsonRpcServerBundle\Profiler\JsonRpcDataCollector;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

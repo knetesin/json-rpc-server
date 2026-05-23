@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Mcp;
 
 /**
  * Optional hook for RPC method classes that need to reshape their result

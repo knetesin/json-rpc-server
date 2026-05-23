@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Mcp;
 
-use JsonRpcServer\Mcp\McpToolFilter;
-use JsonRpcServer\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use PHPUnit\Framework\TestCase;
 
 final class McpToolFilterTest extends TestCase

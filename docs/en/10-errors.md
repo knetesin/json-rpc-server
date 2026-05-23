@@ -50,7 +50,7 @@ throw new AccessDeniedException('No access to billing', rpcCode: -33001);
 Subclass `RpcException`:
 
 ```php
-use JsonRpcServer\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 
 final class PaymentDeclinedException extends RpcException
 {

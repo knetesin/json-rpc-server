@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
-use JsonRpcServer\Batch\ParallelBatchExecutor;
+use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Batch;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Batch;
 
-use JsonRpcServer\Batch\ParallelBatchExecutor;
-use JsonRpcServer\Request\RpcParams;
-use JsonRpcServer\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;

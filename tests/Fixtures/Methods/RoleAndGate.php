@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\RoleMatch;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
 
 #[Rpc\Method('test.roleAnd', roles: ['ROLE_A', 'ROLE_B'], rolesMatch: RoleMatch::All)]
 final class RoleAndGate

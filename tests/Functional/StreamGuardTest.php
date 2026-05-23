@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Functional;
+namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
 /**
  * Compile-time guard: a #[Rpc\Stream] handler with routes.stream.enabled: false

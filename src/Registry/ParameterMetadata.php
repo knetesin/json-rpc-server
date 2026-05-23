@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Registry;
+namespace Knetesin\JsonRpcServerBundle\Registry;
 
 use Symfony\Component\Validator\Constraint;
 

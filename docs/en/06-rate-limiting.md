@@ -7,8 +7,8 @@ without the package installed.
 ## Basic use
 
 ```php
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\RateLimitScope;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitScope;
 
 #[Rpc\Method('report.heavy')]
 #[Rpc\RateLimit(limit: 10, intervalSec: 60, scope: RateLimitScope::User)]
@@ -58,7 +58,7 @@ The underlying algorithm. Same `limit` and `intervalSec`, different behavior:
 | `NoLimit` | Disabled. The attribute documents intent but enforces nothing. | Per-env toggling, tests. |
 
 ```php
-use JsonRpcServer\Attribute\RateLimitPolicy;
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimitPolicy;
 
 #[Rpc\RateLimit(
     limit: 5,

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Profiler;
+namespace Knetesin\JsonRpcServerBundle\Profiler;
 
-use JsonRpcServer\Event\BatchDispatchedEvent;
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Event\BatchDispatchedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 
 final class RpcProfilerSubscriber implements EventSubscriberInterface

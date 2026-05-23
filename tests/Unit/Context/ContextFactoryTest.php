@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Context;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Context;
 
-use JsonRpcServer\Context\ContextFactory;
-use JsonRpcServer\Security\SecurityUserResolver;
+use Knetesin\JsonRpcServerBundle\Context\ContextFactory;
+use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;

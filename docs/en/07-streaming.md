@@ -22,8 +22,8 @@ build listing every method that carries the attribute — no silent 404s.
 ## Declaring a streaming method
 
 ```php
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Attribute\StreamFormat;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
 
 #[Rpc\Method('chat.stream')]
 #[Rpc\Stream(format: StreamFormat::Sse)]

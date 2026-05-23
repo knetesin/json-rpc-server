@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Serializer;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Serializer;
 
-use JsonRpcServer\Serializer\DateNormalizer;
-use JsonRpcServer\Type\Date;
+use Knetesin\JsonRpcServerBundle\Serializer\DateNormalizer;
+use Knetesin\JsonRpcServerBundle\Type\Date;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Mcp;
 
 /**
  * Encodes a normalized PHP value into TOON — a token-efficient,

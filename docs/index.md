@@ -14,7 +14,7 @@ composer require knetesin/json-rpc-server
 ```
 
 ```php
-use JsonRpcServer\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
 
 #[Rpc\Method('user.update', roles: ['ROLE_USER'])]
 final class UpdateUser

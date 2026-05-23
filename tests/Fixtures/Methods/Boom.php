@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Fixtures\Methods;
+namespace Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods;
 
-use JsonRpcServer\Attribute as Rpc;
-use JsonRpcServer\Exception\AccessDeniedException;
-use JsonRpcServer\Exception\NotFoundException;
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+use Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException;
+use Knetesin\JsonRpcServerBundle\Exception\NotFoundException;
 
 #[Rpc\Method('test.boom')]
 final class Boom

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Mcp;
+namespace Knetesin\JsonRpcServerBundle\Mcp;
 
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Registry\ParameterMetadata;
-use JsonRpcServer\Serializer\DateNormalizer;
-use JsonRpcServer\Type\Date;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
+use Knetesin\JsonRpcServerBundle\Serializer\DateNormalizer;
+use Knetesin\JsonRpcServerBundle\Type\Date;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**

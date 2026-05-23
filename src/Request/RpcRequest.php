@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Request;
+namespace Knetesin\JsonRpcServerBundle\Request;
 
 final readonly class RpcRequest
 {

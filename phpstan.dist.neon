@@ -37,5 +37,5 @@ parameters:
         # over its $type argument. DateNormalizer deliberately returns null
         # for null / empty-string input — the test asserts that null path.
         -
-            message: '#assertNull\(\) with (JsonRpcServer\\Type\\Date|DateTimeImmutable) will always evaluate to false\.#'
+            message: '#assertNull\(\) with (Knetesin\\JsonRpcServerBundle\\Type\\Date|DateTimeImmutable) will always evaluate to false\.#'
             path: tests/Unit/Serializer/DateNormalizerTest.php

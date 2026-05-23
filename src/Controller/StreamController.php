@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Controller;
+namespace Knetesin\JsonRpcServerBundle\Controller;
 
-use JsonRpcServer\Attribute\StreamFormat;
-use JsonRpcServer\Dispatcher\Dispatcher;
-use JsonRpcServer\Event\StreamIterationCompletedEvent;
-use JsonRpcServer\Event\StreamIterationFailedEvent;
-use JsonRpcServer\Event\StreamRowEmittedEvent;
-use JsonRpcServer\Exception\InternalErrorException;
-use JsonRpcServer\Exception\InvalidRequestException;
-use JsonRpcServer\Exception\MethodNotFoundException;
-use JsonRpcServer\Exception\RpcErrorEnvelope;
-use JsonRpcServer\Exception\RpcException;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcRequest;
-use JsonRpcServer\Request\RpcRequestParser;
+use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
+use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
+use Knetesin\JsonRpcServerBundle\Event\StreamIterationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\StreamIterationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\StreamRowEmittedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\InternalErrorException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
+use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Exception\RpcErrorEnvelope;
+use Knetesin\JsonRpcServerBundle\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequestParser;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;

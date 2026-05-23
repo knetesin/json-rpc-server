@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
-use JsonRpcServer\OpenTelemetry\OpenTelemetrySubscriber;
+use Knetesin\JsonRpcServerBundle\OpenTelemetry\OpenTelemetrySubscriber;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;

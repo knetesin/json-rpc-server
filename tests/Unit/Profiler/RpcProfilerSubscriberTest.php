@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Profiler;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Profiler;
 
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
-use JsonRpcServer\Profiler\JsonRpcDataCollector;
-use JsonRpcServer\Profiler\RpcProfilerSubscriber;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Profiler\JsonRpcDataCollector;
+use Knetesin\JsonRpcServerBundle\Profiler\RpcProfilerSubscriber;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
 use PHPUnit\Framework\TestCase;
 
 final class RpcProfilerSubscriberTest extends TestCase

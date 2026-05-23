@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Controller;
+namespace Knetesin\JsonRpcServerBundle\Controller;
 
-use JsonRpcServer\OpenRpc\OpenRpcDocumentBuilder;
+use Knetesin\JsonRpcServerBundle\OpenRpc\OpenRpcDocumentBuilder;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 /**

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Unit\Sentry;
+namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Sentry;
 
-use JsonRpcServer\Event\MethodInvocationCompletedEvent;
-use JsonRpcServer\Event\MethodInvocationFailedEvent;
-use JsonRpcServer\Event\MethodInvocationStartedEvent;
-use JsonRpcServer\Exception\InvalidParamsException;
-use JsonRpcServer\Registry\MethodMetadata;
-use JsonRpcServer\Request\RpcParams;
-use JsonRpcServer\Sentry\SentryRpcSubscriber;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
+use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcParams;
+use Knetesin\JsonRpcServerBundle\Sentry\SentryRpcSubscriber;
 use PHPUnit\Framework\TestCase;
 use Sentry\Breadcrumb;
 use Sentry\State\HubInterface;

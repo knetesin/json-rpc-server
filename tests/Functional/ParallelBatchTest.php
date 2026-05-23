@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Functional;
+namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
-use JsonRpcServer\Batch\FanoutDecision;
-use JsonRpcServer\Batch\ParallelBatchExecutor;
-use JsonRpcServer\Event\BatchDispatchedEvent;
+use Knetesin\JsonRpcServerBundle\Batch\FanoutDecision;
+use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
+use Knetesin\JsonRpcServerBundle\Event\BatchDispatchedEvent;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Request;
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Command;
+namespace Knetesin\JsonRpcServerBundle\Command;
 
-use JsonRpcServer\Cache\RpcCacheInvalidator;
+use Knetesin\JsonRpcServerBundle\Cache\RpcCacheInvalidator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

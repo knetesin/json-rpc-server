@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JsonRpcServer\Tests\Functional;
+namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
 use Symfony\Component\HttpFoundation\Request;
 
@@ -483,10 +483,10 @@ final class McpEndpointTest extends KernelTestCase
         // removed when the bundle is disabled. Routes themselves still resolve
         // (they live in routes.php) but the controller is no longer wired,
         // which is acceptable since the user has explicitly disabled MCP.
-        $this->assertFalse($container->has(\JsonRpcServer\Controller\McpController::class));
-        $this->assertFalse($container->has(\JsonRpcServer\Mcp\McpToolRegistry::class));
-        $this->assertFalse($container->has(\JsonRpcServer\Mcp\McpToolFilter::class));
-        $this->assertFalse($container->has(\JsonRpcServer\Mcp\JsonSchemaBuilder::class));
+        $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Controller\McpController::class));
+        $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Mcp\McpToolRegistry::class));
+        $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter::class));
+        $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder::class));
     }
 
     /**
