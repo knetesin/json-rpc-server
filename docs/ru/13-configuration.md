@@ -21,6 +21,7 @@ json_rpc_server:
     default_roles: []         # напр. ['ROLE_USER'] для secure-by-default
     public_prefixes: []       # напр. ['public.', 'health.']
     public_methods: []        # напр. ['ping', 'version']
+    prefix_roles: {}          # напр. {'admin.': ['ROLE_ADMIN'], 'internal.': ['ROLE_INTERNAL']}
 
   params:
     allow_positional_dto: false
@@ -110,22 +111,29 @@ json_rpc_server:
     expose_role_names: false
 ```
 
-## `security.default_roles` / `public_prefixes` / `public_methods`
+## `security.default_roles` / `public_prefixes` / `public_methods` / `prefix_roles`
 
-По умолчанию `[]` / `[]` / `[]` — историческое поведение "нет `roles:` в
-атрибуте = публичный метод". Задайте `default_roles`, чтобы переключить
+По умолчанию `[]` / `[]` / `[]` / `{}` — историческое поведение "нет `roles:`
+в атрибуте = публичный метод". Задайте `default_roles`, чтобы переключить
 бандл в режим secure-by-default: каждый метод без своего
 `#[Rpc\Method(roles: [...])]` получает роли из конфига, а `public_prefixes`
 и `public_methods` — allowlist для эндпоинтов, которые должны остаться
 анонимными.
+
+`prefix_roles` позволяет задать роли по умолчанию точечно — для префикса имён
+методов, без правки каждого хендлера: напр., `admin.*` → `ROLE_ADMIN`,
+`internal.*` → `ROLE_INTERNAL`, всё остальное по-прежнему откатывается на
+`default_roles`. При перекрытии побеждает самый длинный префикс (`admin.users.`
+перекрывает `admin.` для `admin.users.create`).
 
 Порядок резолюции (первое совпадение выигрывает, считается на compile time):
 
 1. атрибут содержит непустые `roles` → используется как есть
 2. имя метода в `public_methods` → публичный
 3. имя начинается с одного из `public_prefixes` → публичный
-4. `default_roles` не пуст → подставляются дефолтные
-5. иначе → публичный
+4. имя совпадает с `prefix_roles` (длиннейший префикс выигрывает) → эти роли
+5. `default_roles` не пуст → подставляются дефолтные
+6. иначе → публичный
 
 ```yaml
 json_rpc_server:
@@ -133,6 +141,9 @@ json_rpc_server:
     default_roles: ['ROLE_USER']
     public_prefixes: ['public.', 'health.']
     public_methods: ['ping']
+    prefix_roles:
+      'admin.':    ['ROLE_ADMIN']
+      'internal.': ['ROLE_INTERNAL']
 ```
 
 Резолвленные роли попадают в `MethodMetadata::$roles` — `debug:rpc` и

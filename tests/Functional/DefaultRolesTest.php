@@ -10,7 +10,9 @@ use Symfony\Component\HttpFoundation\Request;
  * Covers json_rpc_server.security.default_roles + public_prefixes + public_methods.
  *
  * Resolution precedence (mirrors MethodCompilerPass::resolveEffectiveRoles):
- *   attribute roles  >  public_methods  >  public_prefixes  >  default_roles
+ *   attribute roles  >  public_methods  >  public_prefixes  >  prefix_roles  >  default_roles
+ *
+ * prefix_roles coverage lives in PrefixRolesTest.
  */
 final class DefaultRolesTest extends KernelTestCase
 {

@@ -25,9 +25,11 @@ Anonymous requests pass through, **provided your firewall also allows them on
 the `/rpc` route.**
 
 > **Switching to secure-by-default.** Set `security.default_roles` (see
-> [Configuration reference](./13-configuration.md#securitydefault_roles--public_prefixes--public_methods))
+> [Configuration reference](./13-configuration.md#securitydefault_roles--public_prefixes--public_methods--prefix_roles))
 > to flip the default: every method without explicit `roles:` inherits the
 > listed roles, and only `public_prefixes` / `public_methods` stay anonymous.
+> Use `prefix_roles` (e.g. `admin.* → ROLE_ADMIN`) to apply per-prefix defaults
+> without putting `roles:` on every handler.
 
 ## Protected methods
 

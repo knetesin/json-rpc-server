@@ -23,6 +23,7 @@ json_rpc_server:
         default_roles: []         # e.g. ['ROLE_USER'] for secure-by-default
         public_prefixes: []       # e.g. ['public.', 'health.']
         public_methods: []        # e.g. ['ping', 'version']
+        prefix_roles: {}          # e.g. {'admin.': ['ROLE_ADMIN'], 'internal.': ['ROLE_INTERNAL']}
 
     # ---------- request / response shape ----------
     max_request_size: 1048576
@@ -157,21 +158,27 @@ ROLE_Y"_. Flip to `false` in prod if your role identifiers leak business
 structure (`ROLE_BILLING_INTERNAL`) — the client then gets a generic
 `Access denied`.
 
-### `security.default_roles` / `public_prefixes` / `public_methods`
+### `security.default_roles` / `public_prefixes` / `public_methods` / `prefix_roles`
 
-Default `[]` / `[]` / `[]` — historical "no `roles:` on attribute means
+Default `[]` / `[]` / `[]` / `{}` — historical "no `roles:` on attribute means
 public" behavior. Set `default_roles` to flip the bundle into secure-by-default
 mode: every method that doesn't carry its own `#[Rpc\Method(roles: [...])]`
 inherits the listed roles, with `public_prefixes` and `public_methods` as the
 allowlist for endpoints that should stay anonymous.
+
+`prefix_roles` lets you narrow defaults per method-name prefix without touching
+every handler: e.g. `admin.*` → `ROLE_ADMIN`, `internal.*` → `ROLE_INTERNAL`,
+while everything else still falls back to `default_roles`. Longest matching
+prefix wins, so `admin.users.` overrides `admin.` for `admin.users.create`.
 
 Resolution precedence (first match wins, computed at container compile time):
 
 1. attribute carries explicit `roles` → use as-is
 2. method name is in `public_methods` → public
 3. method name starts with any `public_prefixes` entry → public
-4. `default_roles` is non-empty → apply default
-5. otherwise → public
+4. method name matches a `prefix_roles` entry (longest wins) → those roles
+5. `default_roles` is non-empty → apply default
+6. otherwise → public
 
 ```yaml
 json_rpc_server:
@@ -179,6 +186,9 @@ json_rpc_server:
     default_roles: ['ROLE_USER']
     public_prefixes: ['public.', 'health.']
     public_methods: ['ping']
+    prefix_roles:
+      'admin.':    ['ROLE_ADMIN']
+      'internal.': ['ROLE_INTERNAL']
 ```
 
 The resolved roles end up in `MethodMetadata::$roles` — `debug:rpc` and the

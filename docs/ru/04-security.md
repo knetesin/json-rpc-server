@@ -24,9 +24,11 @@ final class Ping
 на `/rpc`.**
 
 > **Secure-by-default режим.** Задайте `security.default_roles`
-> (см. [Configuration reference](./13-configuration.md#securitydefault_roles--public_prefixes--public_methods)) —
+> (см. [Configuration reference](./13-configuration.md#securitydefault_roles--public_prefixes--public_methods--prefix_roles)) —
 > тогда любой метод без явного `roles:` наследует эти роли, а анонимными
 > остаются только перечисленные в `public_prefixes` / `public_methods`.
+> `prefix_roles` (напр. `admin.* → ROLE_ADMIN`) задаёт дефолтные роли точечно
+> по префиксу имён, без `roles:` на каждом хендлере.
 
 ## Защищённые методы
 

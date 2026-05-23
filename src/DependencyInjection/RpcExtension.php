@@ -42,6 +42,7 @@ final class RpcExtension extends Extension
         $container->setParameter('json_rpc_server.security.default_roles', array_values($config['security']['default_roles']));
         $container->setParameter('json_rpc_server.security.public_prefixes', array_values($config['security']['public_prefixes']));
         $container->setParameter('json_rpc_server.security.public_methods', array_values($config['security']['public_methods']));
+        $container->setParameter('json_rpc_server.security.prefix_roles', $config['security']['prefix_roles']);
         $container->setParameter('json_rpc_server.context.request_id_header', $config['context']['request_id_header']);
         $container->setParameter('json_rpc_server.headers.deprecation', $config['headers']['deprecation']);
         $container->setParameter('json_rpc_server.stream.headers', array_filter(

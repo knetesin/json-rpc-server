@@ -46,6 +46,11 @@ final class MethodCompilerPass implements CompilerPassInterface
         /** @var list<string> $publicMethods */
         $publicMethods = (array) $container->getParameter('json_rpc_server.security.public_methods');
         $publicMethodsIndex = array_fill_keys($publicMethods, true);
+        /** @var array<string, list<string>> $prefixRoles */
+        $prefixRoles = (array) $container->getParameter('json_rpc_server.security.prefix_roles');
+        // Sort by prefix length DESC so the longest match wins deterministically
+        // when both "admin." and "admin.users." are configured.
+        uksort($prefixRoles, static fn (string $a, string $b): int => \strlen($b) <=> \strlen($a));
         $defaultAllowPositionalDto = (bool) $container->getParameter('json_rpc_server.params.allow_positional_dto');
         $defaultRejectUnknown = (bool) $container->getParameter('json_rpc_server.params.reject_unknown');
         $datetimeFormatParam = $container->hasParameter('json_rpc_server.serializer.datetime_format')
@@ -118,6 +123,7 @@ final class MethodCompilerPass implements CompilerPassInterface
                 $defaultRoles,
                 $publicPrefixes,
                 $publicMethodsIndex,
+                $prefixRoles,
             );
 
             $raw = [
@@ -315,13 +321,15 @@ final class MethodCompilerPass implements CompilerPassInterface
      *   1. attribute carries explicit roles  → use as-is
      *   2. name listed in public_methods     → public (operator allow)
      *   3. name matches a public_prefixes    → public (operator allow)
-     *   4. default_roles is non-empty        → apply default
-     *   5. otherwise                         → public (historical behavior)
+     *   4. name matches a prefix_roles entry → use those roles (longest prefix wins)
+     *   5. default_roles is non-empty        → apply default
+     *   6. otherwise                         → public (historical behavior)
      *
      * @param list<string> $attributeRoles
      * @param list<string> $defaultRoles
      * @param list<string> $publicPrefixes
      * @param array<string, true> $publicMethodsIndex
+     * @param array<string, list<string>> $prefixRoles already sorted by prefix length DESC
      *
      * @return list<string>
      */
@@ -331,6 +339,7 @@ final class MethodCompilerPass implements CompilerPassInterface
         array $defaultRoles,
         array $publicPrefixes,
         array $publicMethodsIndex,
+        array $prefixRoles,
     ): array {
         if ([] !== $attributeRoles) {
             return $attributeRoles;
@@ -341,6 +350,11 @@ final class MethodCompilerPass implements CompilerPassInterface
         foreach ($publicPrefixes as $prefix) {
             if ('' !== $prefix && str_starts_with($methodName, $prefix)) {
                 return [];
+            }
+        }
+        foreach ($prefixRoles as $prefix => $roles) {
+            if ('' !== $prefix && str_starts_with($methodName, $prefix)) {
+                return $roles;
             }
         }
 
