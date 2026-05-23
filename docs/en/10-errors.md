@@ -145,23 +145,34 @@ back off without parsing the body.
 JSON-RPC 2.0 is HTTP-status-agnostic in spirit — every response could be a 200
 with an error in the body. The bundle leans pragmatic:
 
-| Failure | `/rpc` | `/rpc/stream` (pre-stream) | `/mcp/call` |
-|---|---|---|---|
-| Parse | 200 | 400 | 400 |
-| Invalid request | 200 | 400 | 400 |
-| Method not found | 200 | 404 | 404 |
-| Invalid params | 200 | 400 | 200 (MCP convention) |
-| Access denied | 200 | 400 | 200 (MCP convention) |
-| Rate limit | 200 | 400 | 200 (MCP convention) |
-| Internal error | 200 | 500 | 200 (MCP convention) |
-| Request too large | **413** | **413** | **413** |
+| Failure | `/rpc` (default) | `/rpc` + `http_status.enabled` | `/rpc/stream` (pre-stream) | `/mcp/call` |
+|---|---|---|---|---|
+| Parse | 200 | 400 | 400 | 400 |
+| Invalid request | 200 | 400 | 400 | 400 |
+| Method not found | 200 | 404 | 404 | 404 |
+| Invalid params | 200 | 400 | 400 | 200 (MCP convention) |
+| Access denied | 200 | 400 | 400 | 200 (MCP convention) |
+| Rate limit | 200 | 429 | 400 | 200 (MCP convention) |
+| Internal error | 200 | 500 | 500 | 200 (MCP convention) |
+| Request too large | **413** | **413** | **413** | **413** |
 
-The 413 elevation is the one exception on `/rpc`: oversized payloads are a
-transport concern, so monitoring/load balancers can filter them out without
-parsing the body.
+On `/rpc`, oversized payloads always return **413** — even when
+`http_status.enabled` is `false`. That lets monitoring and load balancers drop
+oversize traffic without parsing JSON.
 
-For everything else, the JSON-RPC body's `error.code` is the canonical
-classifier.
+For every other failure, the JSON-RPC body's `error.code` is the canonical
+classifier. Optional HTTP mapping is dev-friendly (browser, `curl -f`, proxies)
+but off by default so JSON-RPC clients and retry middleware keep seeing a
+uniform 200:
+
+```yaml
+json_rpc_server:
+  http_status:
+    enabled: true
+```
+
+Batch responses use the **highest** HTTP status among items (e.g. one 404 and
+one 200 → 404). Successful items still carry `result` in the body.
 
 ## Internal errors
 

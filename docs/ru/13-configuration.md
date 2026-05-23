@@ -85,6 +85,18 @@ json_rpc_server:
   max_json_depth: 64
 ```
 
+## `http_status.enabled`
+
+По умолчанию `false`. При `true` `/rpc` мапит `error.code` в HTTP-статусы
+(400/404/429/500) как `/rpc/stream`. Oversized body всё равно **413**, даже
+когда флаг выключен. В batch — максимальный статус среди элементов.
+
+```yaml
+json_rpc_server:
+  http_status:
+    enabled: true
+```
+
 ## `security.roles_match`
 
 Дефолт когда `#[Rpc\Method(rolesMatch: ...)]` не указан.
@@ -387,6 +399,7 @@ json_rpc_server:
 |---|---|
 | `%json_rpc_server.max_request_size%` | `max_request_size` |
 | `%json_rpc_server.max_json_depth%` | `max_json_depth` |
+| `%json_rpc_server.http_status.enabled%` | `http_status.enabled` |
 | `%json_rpc_server.security.roles_match%` | `security.roles_match` |
 | `%json_rpc_server.security.expose_role_names%` | `security.expose_role_names` |
 | `%json_rpc_server.params.allow_positional_dto%` | `params.allow_positional_dto` |

@@ -58,6 +58,7 @@ final class RpcExtension extends Extension
         $container->setParameter('json_rpc_server.serializer.timezone', $config['serializer']['timezone']);
         $container->setParameter('json_rpc_server.max_request_size', $config['max_request_size']);
         $container->setParameter('json_rpc_server.max_json_depth', $config['max_json_depth']);
+        $container->setParameter('json_rpc_server.http_status.enabled', $config['http_status']['enabled']);
         // Compiler pass may raise this to fit any per-method MaxRequestSize attribute.
         $container->setParameter('json_rpc_server.parser_cap', $config['max_request_size']);
         $container->setParameter('json_rpc_server.cache.default_pool', $config['cache']['default_pool']);

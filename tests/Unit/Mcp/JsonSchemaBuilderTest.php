@@ -6,7 +6,9 @@ namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Mcp;
 
 use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
 use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilderFactory;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\FiltersMapRequest;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\Priority;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\TagsMapRequest;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\TeamRequest;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Dto\UserRequest;
 use Knetesin\JsonRpcServerBundle\Type\Date;
@@ -156,5 +158,26 @@ final class JsonSchemaBuilderTest extends TestCase
 
         $this->assertSame('array', $props->members['type']);
         $this->assertArrayNotHasKey('items', $props->members);
+    }
+
+    public function testStringKeyedMapOfDtoBecomesObjectWithAdditionalProperties(): void
+    {
+        $builder = JsonSchemaBuilderFactory::create(datetimeFormat: 'iso8601');
+        $props = $builder->fromClass(FiltersMapRequest::class)['properties'];
+
+        $this->assertSame('object', $props->filters['type']);
+        $this->assertArrayNotHasKey('items', $props->filters);
+        $this->assertArrayHasKey('additionalProperties', $props->filters);
+        $this->assertSame('object', $props->filters['additionalProperties']['type']);
+        $this->assertObjectHasProperty('mode', $props->filters['additionalProperties']['properties']);
+    }
+
+    public function testStringKeyedMapOfScalarUsesAdditionalPropertiesType(): void
+    {
+        $builder = JsonSchemaBuilderFactory::create(datetimeFormat: 'iso8601');
+        $props = $builder->fromClass(TagsMapRequest::class)['properties'];
+
+        $this->assertSame('object', $props->tags['type']);
+        $this->assertSame('string', $props->tags['additionalProperties']['type']);
     }
 }

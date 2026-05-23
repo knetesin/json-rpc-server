@@ -12,6 +12,7 @@ use Knetesin\JsonRpcServerBundle\Attribute\RateLimitScope;
 use Knetesin\JsonRpcServerBundle\Attribute\RoleMatch;
 use Knetesin\JsonRpcServerBundle\Attribute\StreamFormat;
 use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -77,6 +78,56 @@ final class MethodRegistry
         }
 
         return $this->methods ?? [];
+    }
+
+    /**
+     * Aggregate counts for observability (Web Profiler panel, debug tooling).
+     *
+     * @return array{
+     *     total: int,
+     *     streaming: int,
+     *     deprecated: int,
+     *     secured: int,
+     *     cached: int,
+     *     rate_limited: int,
+     *     mcp_exposed: int,
+     * }
+     */
+    public function statistics(?McpToolFilter $mcpFilter = null): array
+    {
+        $stats = [
+            'total' => 0,
+            'streaming' => 0,
+            'deprecated' => 0,
+            'secured' => 0,
+            'cached' => 0,
+            'rate_limited' => 0,
+            'mcp_exposed' => 0,
+        ];
+
+        foreach ($this->rawMethods as $name => $raw) {
+            ++$stats['total'];
+            if ($raw['isStreaming'] ?? false) {
+                ++$stats['streaming'];
+            }
+            if (null !== ($raw['deprecated'] ?? null)) {
+                ++$stats['deprecated'];
+            }
+            if ([] !== ($raw['roles'] ?? [])) {
+                ++$stats['secured'];
+            }
+            if (isset($raw['cache'])) {
+                ++$stats['cached'];
+            }
+            if (isset($raw['rateLimit'])) {
+                ++$stats['rate_limited'];
+            }
+            if (null !== $mcpFilter && $mcpFilter->isExposed($this->get($name))) {
+                ++$stats['mcp_exposed'];
+            }
+        }
+
+        return $stats;
     }
 
     /**

@@ -183,13 +183,15 @@ This is the recommended default.
 The schema builder covers PHP types + a curated Validator constraint set.
 Things not modeled:
 
-- **Array of DTOs** — when a constructor parameter is `array` and PHPDoc
-  advertises `list<YourDto>`, `Foo[]`, or `array<int, YourDto>`, the schema
-  includes nested `items` for `YourDto`. Requires the same PHPDoc you use for
-  Serializer (`phpstan/phpdoc-parser` + `phpdocumentor/type-resolver` are
-  bundle dependencies). Without PHPDoc, arrays stay `{type: 'array'}` only.
-- **Array of scalars** (`list<int>`, `string[]`, …) — still `{type: 'array'}`
-  without `items` today.
+- **List-like arrays** — `list<YourDto>`, `Foo[]`, `array<int, YourDto>` →
+  `{type: 'array', items: …}`. Object element types get full nested `items`;
+  scalar lists stay `{type: 'array'}` only.
+- **String-keyed maps** — `array<string, YourDto>` (and scalar values) →
+  `{type: 'object', additionalProperties: …}` so the schema matches JSON object
+  maps in client `params`. Union value types map to `additionalProperties.oneOf`.
+- Requires PHPDoc on the ctor param or promoted property (`@var` / `@param`);
+  `phpstan/phpdoc-parser` + `phpdocumentor/type-resolver` are bundle
+  dependencies. Without PHPDoc, bare `array` stays `{type: 'array'}` only.
 - Custom Validator constraints — only the standard ones in
   `Symfony\Component\Validator\Constraints\*` are mapped. Custom constraints
   pass through validation but don't appear in the schema.

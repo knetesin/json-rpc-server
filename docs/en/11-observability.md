@@ -42,7 +42,13 @@ final readonly class MethodInvocationFailedEvent {
 }
 ```
 
-`Started` always fires first. Then exactly one of `Completed` or `Failed`.
+`Started` fires once the method name is known (after registry lookup, before
+argument resolution). Then exactly one of `Completed` or `Failed`.
+
+That means **client-side failures** (`InvalidParamsException` / -32602,
+`AccessDeniedException`, rate limits, denormalize errors) still produce
+`rpc.call.failed`, a Web Profiler RPC row, and optional Sentry/OTel hooks —
+the handler never runs, but observability does.
 
 For streaming methods, `Completed` fires the moment the iterator is returned
 (before iteration). Three additional events let you track iteration itself:
@@ -124,10 +130,14 @@ instead — `Completed` and `Failed` never both fire for the same call.
 When `kernel.debug = true` and `symfony/web-profiler-bundle` is installed, the
 bundle adds a **RPC** panel:
 
-- one row per invocation in the request
-- method name, handler class, normalized params
-- status (`ok` / `error`), duration, cache-hit flag
-- result preview (or exception + message on failures)
+- **registry summary** — total registered methods, MCP-exposed tools, streaming,
+  deprecated, role-protected, cached, and rate-limited counts (from compile-time
+  metadata; visible even when the request did not call any RPC method)
+- **this request** — call count, unique methods, total duration, errors, cache hits
+- one row per invocation: method name, handler class, normalized params, status,
+  duration, result preview (or exception on failures)
+- **batch dispatches** — fan-out decision, batch size, sub-call timings (when
+  parallel batch ran)
 
 ```yaml
 json_rpc_server:
@@ -227,8 +237,12 @@ In Sentry every issue from a handler gets:
 
 Unhandled exceptions still flow into Sentry via the PSR-3 logger as before —
 this subscriber is purely about extra context. Exceptions in
-`ignore_exceptions` skip the error breadcrumb / span. To filter them out of
-Sentry entirely use a `before_send` hook in Sentry config.
+`ignore_exceptions` skip the error breadcrumb / span (they still produce
+`rpc.call.failed` in application logs when `logging.enabled` is true). Remove
+`InvalidParamsException` from `ignore_exceptions` when you want validation
+mistakes as Sentry issues / error spans — the defaults keep client errors off
+SLO dashboards. To filter them out of Sentry entirely use a `before_send`
+hook in Sentry config.
 
 The subscriber registers only when **both** flags are true: `enabled: true`
 and `sentry/sentry-symfony` installed. Dev without Sentry silently no-ops.

@@ -4,12 +4,17 @@
 
 {% block menu %}
     {% set call_count = collector.callCount %}
-    <span class="label {{ call_count > 0 ? '' : 'disabled' }} {{ collector.hasError ? 'label-status-red' : (call_count > 0 ? 'label-status-green' : '') }}">
+    {% set registered = collector.registeredMethodCount %}
+    <span class="label {{ registered > 0 or call_count > 0 ? '' : 'disabled' }} {{ collector.hasError ? 'label-status-red' : (call_count > 0 ? 'label-status-green' : '') }}">
         <span class="icon">{{ source('@KnetesinJsonRpcServer/Collector/icon.svg') }}</span>
         <strong>RPC</strong>
         {% if call_count > 0 %}
             <span class="count">
                 <span>{{ call_count }}</span>
+            </span>
+        {% elseif registered > 0 %}
+            <span class="count">
+                <span>{{ registered }}</span>
             </span>
         {% endif %}
     </span>
@@ -17,26 +22,56 @@
 
 {% block toolbar %}
     {% set call_count = collector.callCount %}
-    {% if call_count > 0 %}
+    {% set registered = collector.registeredMethodCount %}
+    {% set registry = collector.registry %}
+    {% if call_count > 0 or registered > 0 %}
         {% set icon %}
             {{ source('@KnetesinJsonRpcServer/Collector/icon.svg') }}
-            <span class="sf-toolbar-value">{{ call_count }}</span>
-            <span class="sf-toolbar-info-piece-additional-detail">
-                <span class="sf-toolbar-label">in</span>
-                <span class="sf-toolbar-value">{{ collector.totalDurationMs }} ms</span>
-            </span>
+            {% if call_count > 0 %}
+                <span class="sf-toolbar-value">{{ call_count }}</span>
+                <span class="sf-toolbar-info-piece-additional-detail">
+                    <span class="sf-toolbar-label">in</span>
+                    <span class="sf-toolbar-value">{{ collector.totalDurationMs }} ms</span>
+                </span>
+            {% else %}
+                <span class="sf-toolbar-value">{{ registered }}</span>
+                <span class="sf-toolbar-label">methods</span>
+            {% endif %}
         {% endset %}
 
         {% set text %}
             <div class="sf-toolbar-info-group">
                 <div class="sf-toolbar-info-piece">
-                    <b>JSON-RPC calls</b>
-                    <span class="sf-toolbar-status {{ collector.hasError ? 'sf-toolbar-status-red' : 'sf-toolbar-status-green' }}">{{ call_count }}</span>
+                    <b>Registered methods</b>
+                    <span>{{ registry.total }}</span>
                 </div>
-                <div class="sf-toolbar-info-piece">
-                    <b>Total time</b>
-                    <span>{{ collector.totalDurationMs }} ms</span>
-                </div>
+                {% if registry.mcp_exposed > 0 %}
+                    <div class="sf-toolbar-info-piece">
+                        <b>MCP tools</b>
+                        <span>{{ registry.mcp_exposed }}</span>
+                    </div>
+                {% endif %}
+                {% if call_count > 0 %}
+                    <div class="sf-toolbar-info-piece">
+                        <b>Calls this request</b>
+                        <span class="sf-toolbar-status {{ collector.hasError ? 'sf-toolbar-status-red' : 'sf-toolbar-status-green' }}">{{ call_count }}</span>
+                    </div>
+                    <div class="sf-toolbar-info-piece">
+                        <b>Total time</b>
+                        <span>{{ collector.totalDurationMs }} ms</span>
+                    </div>
+                    {% if collector.errorCount > 0 %}
+                        <div class="sf-toolbar-info-piece">
+                            <b>Errors</b>
+                            <span class="sf-toolbar-status sf-toolbar-status-red">{{ collector.errorCount }}</span>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="sf-toolbar-info-piece">
+                        <b>Calls this request</b>
+                        <span>none</span>
+                    </div>
+                {% endif %}
             </div>
         {% endset %}
 
@@ -45,7 +80,46 @@
 {% endblock %}
 
 {% block panel %}
-    <h2>JSON-RPC calls</h2>
+    <h2>JSON-RPC</h2>
+
+    {% set registry = collector.registry %}
+
+    <div class="metrics">
+        <div class="metric">
+            <span class="value">{{ registry.total }}</span>
+            <span class="label">Registered</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ registry.mcp_exposed }}</span>
+            <span class="label">MCP exposed</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ registry.streaming }}</span>
+            <span class="label">Streaming</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ registry.deprecated }}</span>
+            <span class="label">Deprecated</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ registry.secured }}</span>
+            <span class="label">Role-protected</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ registry.cached }}</span>
+            <span class="label">Cached</span>
+        </div>
+        <div class="metric">
+            <span class="value">{{ registry.rate_limited }}</span>
+            <span class="label">Rate-limited</span>
+        </div>
+    </div>
+
+    <p class="help">
+        Registry counts come from compile-time metadata. Run <code>bin/console debug:rpc</code> for the full method list.
+    </p>
+
+    <h3>This request</h3>
 
     {% if collector.callCount == 0 %}
         <div class="empty">
@@ -58,9 +132,25 @@
                 <span class="label">Calls</span>
             </div>
             <div class="metric">
+                <span class="value">{{ collector.uniqueMethodsCalled }}</span>
+                <span class="label">Unique methods</span>
+            </div>
+            <div class="metric">
                 <span class="value">{{ collector.totalDurationMs }} ms</span>
                 <span class="label">Total time</span>
             </div>
+            {% if collector.errorCount > 0 %}
+                <div class="metric">
+                    <span class="value">{{ collector.errorCount }}</span>
+                    <span class="label">Errors</span>
+                </div>
+            {% endif %}
+            {% if collector.cacheHitCount > 0 %}
+                <div class="metric">
+                    <span class="value">{{ collector.cacheHitCount }}</span>
+                    <span class="label">Cache hits</span>
+                </div>
+            {% endif %}
         </div>
 
         <table>
@@ -97,6 +187,42 @@
                                 <span class="text-danger">{{ call.exception_class }}: {{ call.exception_message }}</span>
                             {% else %}
                                 {{ profiler_dump(call.result) }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    {% if collector.dispatchCount > 0 %}
+        <h3>Batch dispatches</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Batch size</th>
+                    <th>Decision</th>
+                    <th>Total time</th>
+                    <th>Fan-out depth</th>
+                    <th>Inflight at start</th>
+                    <th>Sub-call times (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dispatch in collector.dispatches %}
+                    <tr>
+                        <td class="font-normal">{{ loop.index }}</td>
+                        <td>{{ dispatch.batch_size }}</td>
+                        <td><code>{{ dispatch.decision }}</code></td>
+                        <td>{{ dispatch.total_duration_ms }} ms</td>
+                        <td>{{ dispatch.fanout_depth }}</td>
+                        <td>{{ dispatch.inflight_at_start }}</td>
+                        <td class="font-normal">
+                            {% if dispatch.subcall_durations_ms is empty %}
+                                <span class="text-muted">—</span>
+                            {% else %}
+                                {{ dispatch.subcall_durations_ms|join(', ') }}
                             {% endif %}
                         </td>
                     </tr>

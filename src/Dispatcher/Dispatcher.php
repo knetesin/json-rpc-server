@@ -49,34 +49,37 @@ final class Dispatcher
                 'reason' => $meta->deprecated,
             ]);
         }
-        $this->checkRoles($meta);
-        if ($applyRateLimit) {
-            $this->rateLimitChecker?->check($meta, $meta->rateLimit);
-        }
-
-        // Cache lookup — skip for notifications (they typically carry side
-        // effects the client wants applied each time) and for unset cache.
-        $cacheable = null !== $meta->cache && null !== $this->cacheChecker && !$request->isNotification;
-        if ($cacheable) {
-            $hit = $this->cacheChecker->get($meta, $request);
-            if (null !== $hit) {
-                $this->events?->dispatch(new MethodInvocationStartedEvent($meta, $request->params));
-                $this->events?->dispatch(new MethodInvocationCompletedEvent($meta, $request->params, $hit->value, 0.0, cacheHit: true));
-
-                return $hit->value;
-            }
-        }
-
-        $handler = $this->registry->handler($request->method);
-        if (!\is_callable($handler)) {
-            throw new \LogicException(\sprintf('RPC method "%s" handler is not invokable.', $request->method));
-        }
-        $args = $this->resolver->resolve($meta, $request);
-
+        // Observability hooks (logging, profiler, Sentry, OTel) subscribe to
+        // Started / Completed / Failed. Started must fire before argument
+        // resolution so -32602 (validation, unknown keys, denormalize) still
+        // produces a profiler row and rpc.call.failed — not only handler throws.
         $this->events?->dispatch(new MethodInvocationStartedEvent($meta, $request->params));
         $startedAt = microtime(true);
 
         try {
+            $this->checkRoles($meta);
+            if ($applyRateLimit) {
+                $this->rateLimitChecker?->check($meta, $meta->rateLimit);
+            }
+
+            // Cache lookup — skip for notifications (they typically carry side
+            // effects the client wants applied each time) and for unset cache.
+            $cacheable = null !== $meta->cache && null !== $this->cacheChecker && !$request->isNotification;
+            if ($cacheable) {
+                $hit = $this->cacheChecker->get($meta, $request);
+                if (null !== $hit) {
+                    $this->events?->dispatch(new MethodInvocationCompletedEvent($meta, $request->params, $hit->value, microtime(true) - $startedAt, cacheHit: true));
+
+                    return $hit->value;
+                }
+            }
+
+            $handler = $this->registry->handler($request->method);
+            if (!\is_callable($handler)) {
+                throw new \LogicException(\sprintf('RPC method "%s" handler is not invokable.', $request->method));
+            }
+            $args = $this->resolver->resolve($meta, $request);
+
             $result = $handler(...$args);
             // Normalize before caching so the pool stores plain arrays/scalars
             // instead of opaque objects (Doctrine proxies, DTOs with custom

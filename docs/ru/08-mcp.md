@@ -99,7 +99,8 @@ json_rpc_server:
 | Источник | JSON Schema |
 |---|---|
 | `string`, `int`, `float`, `bool`, `array` | `{type: "..."}` |
-| `array` + PHPDoc ctor `list<Dto>` / `Dto[]` | `{type: "array", items: {<object-схема Dto>}}` — `items` это объект-схема, не `[]` |
+| `array` + PHPDoc `list<Dto>` / `Dto[]` | `{type: "array", items: {<object-схема Dto>}}` — `items` это объект-схема, не `[]` |
+| `array` + PHPDoc `array<string, Dto>` | `{type: "object", additionalProperties: {<схема Dto>}}` — соответствует JSON-объекту в `params`, не JSON-массиву |
 | `?T` | `{type: ["T", "null"]}` |
 | Backed enum | `{type, enum: [...]}` |
 | Обычный enum | `{type: "string", enum: [...]}` |

@@ -70,6 +70,26 @@ final class RpcLoggingSubscriberTest extends TestCase
         $this->assertInstanceOf(\Throwable::class, $record['context']['exception']);
     }
 
+    public function testFailedIncludesViolationListForInvalidParams(): void
+    {
+        $logger = new InMemoryLogger();
+        $sub = new RpcLoggingSubscriber($logger);
+
+        $sub->onFailed(new MethodInvocationFailedEvent(
+            method: $this->meta('user.create'),
+            params: new RpcParams(['email' => '']),
+            exception: new InvalidParamsException('Invalid params', [
+                ['path' => 'email', 'message' => 'This value should not be blank.', 'code' => null],
+            ]),
+            durationSec: 0.001,
+        ));
+
+        $this->assertSame(
+            [['path' => 'email', 'message' => 'This value should not be blank.', 'code' => null]],
+            $logger->records[0]['context']['rpc_violations'],
+        );
+    }
+
     public function testParamsAndResultLoggingCanBeDisabled(): void
     {
         $logger = new InMemoryLogger();

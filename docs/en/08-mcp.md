@@ -100,7 +100,8 @@ Coverage:
 | PHP / Symfony source | JSON Schema |
 |---|---|
 | `string`, `int`, `float`, `bool`, `array` | `{type: "..."}` |
-| `array` + ctor PHPDoc `list<Dto>` / `Dto[]` | `{type: "array", items: {<Dto object schema>}}` — `items` is a schema object, not `[]` |
+| `array` + PHPDoc `list<Dto>` / `Dto[]` | `{type: "array", items: {<Dto object schema>}}` — `items` is a schema object, not `[]` |
+| `array` + PHPDoc `array<string, Dto>` | `{type: "object", additionalProperties: {<Dto schema>}}` — matches JSON object maps in `params` (not JSON arrays) |
 | `?T` | `{type: ["T", "null"]}` |
 | Backed enum | `{type, enum: [...]}` |
 | Plain enum | `{type: "string", enum: [...]}` |

@@ -28,6 +28,8 @@ json_rpc_server:
     # ---------- request / response shape ----------
     max_request_size: 1048576
     max_json_depth: 32
+    http_status:
+        enabled: false
 
     json:
         encode_flags: 96            # JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
@@ -211,6 +213,20 @@ method at the parser stage.
 
 Default `32`. Maximum `json_decode` nesting depth for incoming RPC / MCP
 payloads. Raise only if your clients legitimately send deep structures.
+
+### `http_status.enabled`
+
+Default `false`. When `true`, `/rpc` maps JSON-RPC `error.code` values to HTTP
+status codes (400/404/429/500) similar to `/rpc/stream`. Oversized bodies still
+return **413** even when this flag is off. Batch responses use the highest
+status among items. Leave disabled in production JSON-RPC clients unless you
+know your callers expect non-200 transports.
+
+```yaml
+json_rpc_server:
+  http_status:
+    enabled: true
+```
 
 ### `json.encode_flags`
 

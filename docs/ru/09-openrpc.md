@@ -183,13 +183,15 @@ json_rpc_server:
 Schema builder покрывает PHP-типы + curated набор Validator-констрейнтов.
 Что не моделируется:
 
-- **Массив DTO** — для `array` + PHPDoc `list<YourDto>`, `Foo[]` или
-  `array<int, YourDto>` в схеме есть вложенный `items` для `YourDto`. Нужен
-  тот же PHPDoc, что для Serializer (`phpstan/phpdoc-parser` и
-  `phpdocumentor/type-resolver` — зависимости бандла). Без PHPDoc — только
-  `{type: 'array'}`.
-- **Массив scalars** (`list<int>`, `string[]`, …) — пока `{type: 'array'}`
-  без `items`.
+- **List-like массивы** — `list<YourDto>`, `Foo[]`, `array<int, YourDto>` →
+  `{type: 'array', items: …}`; для object-элементов — полная вложенная схема,
+  для scalar-списков — пока только `{type: 'array'}`.
+- **String-keyed map** — `array<string, YourDto>` (и scalar-значения) →
+  `{type: 'object', additionalProperties: …}` в соответствии с JSON object map
+  в JSON `params` клиента. Union в значении → `additionalProperties.oneOf`.
+- Нужен PHPDoc на параметре ctor или promoted-свойстве (`@var` / `@param`);
+  `phpstan/phpdoc-parser` + `phpdocumentor/type-resolver` — зависимости
+  бандла. Без PHPDoc голый `array` остаётся `{type: 'array'}`.
 - Кастомные Validator-констрейнты — мапятся только стандартные из
   `Symfony\Component\Validator\Constraints\*`. Кастомные проходят валидацию,
   но в schema не отображаются.

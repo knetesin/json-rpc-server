@@ -7,6 +7,7 @@ namespace Knetesin\JsonRpcServerBundle\Logging;
 use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
 use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
 use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
 use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -107,6 +108,12 @@ final readonly class RpcLoggingSubscriber implements EventSubscriberInterface
         ];
         if ($event->exception instanceof RpcException) {
             $context['rpc_code'] = $event->exception->rpcCode();
+            if ($event->exception instanceof InvalidParamsException) {
+                $violations = $event->exception->rpcData();
+                if (\is_array($violations) && [] !== $violations) {
+                    $context['rpc_violations'] = $violations;
+                }
+            }
         }
         if ($this->logParams) {
             $context['params'] = $event->params->all();

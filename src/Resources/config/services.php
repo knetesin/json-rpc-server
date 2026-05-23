@@ -16,6 +16,7 @@ use Knetesin\JsonRpcServerBundle\Controller\OpenRpcController;
 use Knetesin\JsonRpcServerBundle\Controller\RpcController;
 use Knetesin\JsonRpcServerBundle\Controller\StreamController;
 use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
+use Knetesin\JsonRpcServerBundle\Http\RpcHttpStatusResolver;
 use Knetesin\JsonRpcServerBundle\Maker\MakeRpcMethod;
 use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder;
@@ -129,10 +130,13 @@ return static function (ContainerConfigurator $container): void {
             '%json_rpc_server.mcp.default_format%',
         ]);
 
+    $services->set(RpcHttpStatusResolver::class);
+
     $services->set(RpcController::class)
         ->arg('$defaultMaxRequestSize', '%json_rpc_server.max_request_size%')
         ->arg('$jsonEncodeFlags', '%json_rpc_server.json.encode_flags%')
         ->arg('$deprecationHeader', '%json_rpc_server.headers.deprecation%')
+        ->arg('$mapHttpStatus', '%json_rpc_server.http_status.enabled%')
         ->public()
         ->tag('controller.service_arguments');
 

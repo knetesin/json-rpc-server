@@ -10,11 +10,11 @@ Three ways to receive parameters, picked by handler signature:
 
 All three can be mixed with injected parameters (`Context`, `Request`).
 
-## Flat `params` on the wire
+## Flat `params` in the JSON request
 
 Regardless of how many PHP parameters your handler declares, **clients always
-send one JSON object** at the top level of `params` (never a nested bag per
-DTO parameter name):
+send one JSON object** inside the HTTP body — under the `params` key of the
+JSON-RPC request (never a nested bag named after the DTO parameter):
 
 ```json
 {
@@ -168,25 +168,25 @@ final readonly class TeamRequest
 }
 ```
 
-Wire shape:
+What the client sends in `params`:
 
 ```json
 {"params": {"members": [{"name": "alice"}, {"name": "bob"}]}}
 ```
 
-- **Runtime:** Symfony Serializer denormalizes each array element into
+- **Runtime (PHP):** Symfony Serializer denormalizes each array element into
   `MemberDto` when the constructor PHPDoc advertises `list<MemberDto>` (same
   doc you would use without this bundle). Add `#[Assert\Valid]` to validate
   each element.
-- **MCP / OpenRPC:** `JsonSchemaBuilder` reads that PHPDoc via
+- **MCP / OpenRPC (documentation):** `JsonSchemaBuilder` reads that PHPDoc via
   `symfony/property-info` and adds a JSON Schema **`items` keyword** — a
-  **sub-schema for one element**, not the wire array itself.
+  **sub-schema for one element**, not the JSON array the client sends.
 
   Do not confuse:
 
   | | Role | Shape |
   |---|---|---|
-  | **`params.members` on the wire** | Actual JSON-RPC payload | JSON **array** of objects: `[{"name":"alice"}, …]` |
+  | **`params.members` in the request JSON** | What Postman / your frontend actually sends | JSON **array** of objects: `[{"name":"alice"}, …]` |
   | **`inputSchema.properties.members.items`** | Schema rule per [JSON Schema](https://json-schema.org/understanding-json-schema/reference/array) | JSON **object** describing each element: `{ "type": "object", "properties": { "name": … } }` |
 
   `items` is never `[]` here — an empty JSON array as `items` would mean
@@ -209,6 +209,46 @@ Wire shape:
 
   Scalar element types (`list<string>`) still appear as `{ "type": "array" }`
   without `items` — only object element types get nested `items` today.
+
+### Associative maps (`array<string, T>`)
+
+In PHP you type the field as `array`, but the client sends a **JSON object**
+`{ "key": value, … }` — not a JSON array `[…]`. Typical examples: `filters`,
+`tags`, metadata maps.
+
+Document the promoted property or constructor parameter:
+
+```php
+final readonly class ListRequest
+{
+    public function __construct(
+        /** @var array<string, FilterSpec> */
+        public array $filters = [],
+    ) {}
+}
+```
+
+Example request (`params` excerpt):
+
+```json
+{"params": {"filters": {"groupId": {"mode": "include", "value": [1]}}}}
+```
+
+Generated OpenRPC / MCP schema (uses `type: object`, not `type: array` + `items`):
+
+```json
+"filters": {
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "properties": { "mode": { "type": "string" }, "value": { "type": "array" } }
+  }
+}
+```
+
+Put `@var` on the **property** (promoted ctor param) or a matching `@param` on
+the constructor — class-level docblocks alone are not read. Union value types
+(`array<string, A|B>`) become `additionalProperties.oneOf`.
 
 ## Pattern 2 — `#[Rpc\Param]`
 

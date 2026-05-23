@@ -208,8 +208,7 @@ final class RpcEndpointTest extends KernelTestCase
     public function testPerMethodLimitRejectsOversizeBody(): void
     {
         // UploadStub declares MaxRequestSize(4096). Send a body well above it.
-        // /rpc returns 200 per spec; oversize is signalled by the `error`
-        // object inside the JSON-RPC envelope.
+        // Oversize is signalled in the JSON-RPC envelope; transport uses 413.
         $kernel = $this->boot();
         $body = \sprintf(
             '{"jsonrpc":"2.0","method":"file.upload","params":{"payload":"%s"},"id":1}',
@@ -219,7 +218,7 @@ final class RpcEndpointTest extends KernelTestCase
         $response = $kernel->handle($request);
         $payload = $this->decodeJsonResponse($response);
 
-        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(413, $response->getStatusCode());
         $this->assertSame(-32600, $payload['error']['code']);
         $this->assertStringContainsString('too large', $payload['error']['message']);
     }
@@ -237,7 +236,7 @@ final class RpcEndpointTest extends KernelTestCase
         $response = $kernel->handle($request);
         $payload = $this->decodeJsonResponse($response);
 
-        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(413, $response->getStatusCode());
         $this->assertSame(-32600, $payload['error']['code']);
         $this->assertStringContainsString('limit: 4096', $payload['error']['message']);
     }

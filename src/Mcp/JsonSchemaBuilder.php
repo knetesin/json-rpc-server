@@ -10,10 +10,12 @@ use Knetesin\JsonRpcServerBundle\Serializer\DateNormalizer;
 use Knetesin\JsonRpcServerBundle\Type\Date;
 use Symfony\Component\PropertyInfo\Extractor\PhpStanExtractor;
 use Symfony\Component\TypeInfo\Type as TypeInfoType;
+use Symfony\Component\TypeInfo\Type\BuiltinType;
 use Symfony\Component\TypeInfo\Type\CollectionType;
 use Symfony\Component\TypeInfo\Type\ObjectType;
 use Symfony\Component\TypeInfo\Type\UnionType;
 use Symfony\Component\TypeInfo\Type\WrappingTypeInterface;
+use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -41,11 +43,11 @@ final class JsonSchemaBuilder
         private readonly string $datetimeFormat = DateNormalizer::FORMAT_ISO8601,
         ?int $maxDepth = null,
         /**
-         * Optional: extracts ctor-arg types from PHPDoc (`@var list<MemberDto>`)
-         * so an `array` ctor param can advertise `items: <MemberDto schema>`.
-         * Without it, `array` schemas stay shape-less — runtime denormalization
-         * still works (Symfony Serializer uses its own PropertyInfo chain), but
-         * MCP/LLM clients can't see the element type.
+         * Optional: extracts ctor-arg / promoted-property types from PHPDoc so an
+         * `array` param can advertise either `items` (`list<T>` / `T[]`) or
+         * `additionalProperties` (`array<string, T>`). Without it, `array` schemas
+         * stay shape-less — runtime denormalization still works (Symfony Serializer
+         * uses its own PropertyInfo chain), but MCP/LLM clients can't see element types.
          */
         private readonly ?PhpStanExtractor $ctorTypeExtractor = null,
     ) {
@@ -196,15 +198,10 @@ final class JsonSchemaBuilder
         $type = $param->getType();
         $base = $this->schemaForType($type, $depth);
 
-        // `array $items` ctor param — see if the PHPDoc carries `list<Foo>` /
-        // `Foo[]` / similar, so the schema can carry `items` for MCP clients.
-        // Only applies when the param actually lives on a class ctor (not on
-        // a free function); $this->ctorTypeExtractor is null in test builders.
+        // `array` ctor param — enrich from PHPDoc: list-like → `items`,
+        // `array<string, T>` → `type: object` + `additionalProperties`.
         if ($this->parameterAdvertisesArray($base) && null !== $this->ctorTypeExtractor) {
-            $itemClass = $this->resolveCtorArrayItemClass($param);
-            if (null !== $itemClass) {
-                $base['items'] = $this->fromClass($itemClass, $depth + 1);
-            }
+            $this->enrichArraySchemaFromPhpDoc($param, $base, $depth);
         }
 
         foreach ($this->collectAttributes($param) as $instance) {
@@ -225,45 +222,183 @@ final class JsonSchemaBuilder
     }
 
     /**
-     * Returns the class-name of the array element if the ctor param's PHPDoc
-     * advertises `list<X>` / `X[]` / `array<int, X>`, otherwise null. Best-effort:
-     * any extractor failure (param lives outside a class, no docblock, mixed
-     * value, …) collapses to null so the schema just lacks `items` rather than
-     * the container build dying for an MCP nicety.
-     *
-     * @return class-string|null
+     * @param array<string, mixed> $base
      */
-    private function resolveCtorArrayItemClass(\ReflectionParameter $param): ?string
+    private function enrichArraySchemaFromPhpDoc(\ReflectionParameter $param, array &$base, int $depth): void
+    {
+        $collectionType = $this->resolveParameterCollectionType($param);
+        if (!$collectionType instanceof CollectionType) {
+            return;
+        }
+
+        if ($this->collectionHasStringKeys($collectionType)) {
+            $valueSchema = $this->schemaFromCollectionValueType($collectionType->getCollectionValueType(), $depth + 1);
+            if ([] === $valueSchema) {
+                return;
+            }
+            $this->applyAssociativeMapSchema($base, $valueSchema);
+
+            return;
+        }
+
+        if (!$this->collectionHasIntKeys($collectionType)) {
+            return;
+        }
+
+        $itemClass = $this->resolveObjectClassFromType($collectionType->getCollectionValueType());
+        if (null === $itemClass) {
+            return;
+        }
+
+        $base['items'] = $this->fromClass($itemClass, $depth + 1);
+    }
+
+    private function resolveParameterCollectionType(\ReflectionParameter $param): ?TypeInfoType
     {
         $declaring = $param->getDeclaringClass()?->getName();
         $function = $param->getDeclaringFunction();
         if (null === $declaring || !$function instanceof \ReflectionMethod || '__construct' !== $function->getName()) {
             return null;
         }
+
         try {
+            // Reads ctor `@param`, promoted-property `@var`, and ctor-doc `@param` lines.
             $type = $this->ctorTypeExtractor?->getTypeFromConstructor($declaring, $param->getName());
         } catch (\Throwable) {
             return null;
         }
+
         if (!$type instanceof TypeInfoType) {
             return null;
         }
 
         $collection = $this->findCollectionType($type);
+
+        return $collection instanceof CollectionType ? $collection : null;
+    }
+
+    private function collectionHasIntKeys(TypeInfoType $collection): bool
+    {
         if (!$collection instanceof CollectionType) {
-            return null;
+            return false;
+        }
+        $key = $collection->getCollectionKeyType();
+
+        return $key instanceof BuiltinType && TypeIdentifier::INT === $key->getTypeIdentifier();
+    }
+
+    private function collectionHasStringKeys(TypeInfoType $collection): bool
+    {
+        if (!$collection instanceof CollectionType) {
+            return false;
+        }
+        $key = $collection->getCollectionKeyType();
+
+        return $key instanceof BuiltinType && TypeIdentifier::STRING === $key->getTypeIdentifier();
+    }
+
+    /**
+     * Client JSON for `array<string, T>` is an object map in `params` — replace
+     * the generic `{type: array}` stub with `{type: object, additionalProperties: <T>}`.
+     *
+     * @param array<string, mixed> $base
+     * @param array<string, mixed> $valueSchema
+     */
+    private function applyAssociativeMapSchema(array &$base, array $valueSchema): void
+    {
+        $nullable = false;
+        if (\is_array($base['type'] ?? null)) {
+            $nullable = \in_array('null', $base['type'], true);
         }
 
-        $value = $this->findObjectType($collection->getCollectionValueType());
-        if (!$value instanceof ObjectType) {
-            return null;
-        }
-        $className = $value->getClassName();
-        if (!class_exists($className)) {
-            return null;
+        $base = [
+            'type' => $nullable ? ['object', 'null'] : 'object',
+            'additionalProperties' => $valueSchema,
+        ];
+    }
+
+    /**
+     * JSON Schema for the value side of `array<string, T>` (or list element type).
+     *
+     * @return array<string, mixed>
+     */
+    private function schemaFromCollectionValueType(TypeInfoType $type, int $depth): array
+    {
+        $object = $this->findObjectType($type);
+        if ($object instanceof ObjectType) {
+            $className = $object->getClassName();
+            if (!class_exists($className) && !enum_exists($className)) {
+                return [];
+            }
+
+            return $this->fromClass($className, $depth);
         }
 
-        return $className;
+        if ($type instanceof BuiltinType) {
+            return match ($type->getTypeIdentifier()) {
+                TypeIdentifier::STRING => ['type' => 'string'],
+                TypeIdentifier::INT => ['type' => 'integer'],
+                TypeIdentifier::FLOAT => ['type' => 'number'],
+                TypeIdentifier::BOOL => ['type' => 'boolean'],
+                default => [],
+            };
+        }
+
+        if ($type instanceof UnionType) {
+            $alternatives = [];
+            foreach ($type->getTypes() as $member) {
+                if ($member instanceof BuiltinType && TypeIdentifier::NULL === $member->getTypeIdentifier()) {
+                    continue;
+                }
+                $schema = $this->schemaFromCollectionValueType($member, $depth);
+                if ([] !== $schema) {
+                    $alternatives[] = $schema;
+                }
+            }
+            if ([] === $alternatives) {
+                return [];
+            }
+            if (1 === \count($alternatives)) {
+                return $alternatives[0];
+            }
+
+            return ['oneOf' => $alternatives];
+        }
+
+        if ($type instanceof CollectionType) {
+            $nested = ['type' => 'array'];
+            if ($this->collectionHasStringKeys($type)) {
+                $inner = $this->schemaFromCollectionValueType($type->getCollectionValueType(), $depth + 1);
+                if ([] !== $inner) {
+                    $this->applyAssociativeMapSchema($nested, $inner);
+                }
+            } elseif ($this->collectionHasIntKeys($type)) {
+                $itemClass = $this->resolveObjectClassFromType($type->getCollectionValueType());
+                if (null !== $itemClass) {
+                    $nested['items'] = $this->fromClass($itemClass, $depth + 1);
+                }
+            }
+
+            return 'array' === ($nested['type'] ?? null) && !isset($nested['items'], $nested['additionalProperties'])
+                ? []
+                : $nested;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return class-string|null
+     */
+    private function resolveObjectClassFromType(TypeInfoType $type): ?string
+    {
+        $object = $this->findObjectType($type);
+        if (!$object instanceof ObjectType) {
+            return null;
+        }
+        $className = $object->getClassName();
+
+        return class_exists($className) ? $className : null;
     }
 
     private function findCollectionType(TypeInfoType $type): ?TypeInfoType

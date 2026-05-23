@@ -87,9 +87,7 @@ final class RateLimitTest extends KernelTestCase
         $response = $kernel->handle($request);
         $payload = $this->decodeJsonResponse($response);
 
-        // JSON-RPC 2.0 is HTTP-status-agnostic — /rpc always returns 200 and
-        // signals failure through the `error` object in the body.
-        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(413, $response->getStatusCode());
         $this->assertSame(-32600, $payload['error']['code']);
         $this->assertStringContainsString('too large', $payload['error']['message']);
     }

@@ -7,17 +7,18 @@ namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Profiler;
 use Knetesin\JsonRpcServerBundle\Event\MethodInvocationCompletedEvent;
 use Knetesin\JsonRpcServerBundle\Event\MethodInvocationFailedEvent;
 use Knetesin\JsonRpcServerBundle\Event\MethodInvocationStartedEvent;
-use Knetesin\JsonRpcServerBundle\Profiler\JsonRpcDataCollector;
 use Knetesin\JsonRpcServerBundle\Profiler\RpcProfilerSubscriber;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Request\RpcParams;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 final class RpcProfilerSubscriberTest extends TestCase
 {
     public function testSubscriberRecordsInvocationLifecycle(): void
     {
-        $collector = new JsonRpcDataCollector();
+        $collector = ProfilerTestHelper::collector();
         $subscriber = new RpcProfilerSubscriber($collector);
         $meta = new MethodMetadata(
             name: 'demo.echo',
@@ -33,7 +34,7 @@ final class RpcProfilerSubscriberTest extends TestCase
         $params = new RpcParams(['x' => 1]);
         $subscriber->onStarted(new MethodInvocationStartedEvent($meta, $params));
         $subscriber->onCompleted(new MethodInvocationCompletedEvent($meta, $params, ['x' => 1], 0.02, cacheHit: false));
-        $collector->collect(new \Symfony\Component\HttpFoundation\Request(), new \Symfony\Component\HttpFoundation\Response());
+        $collector->collect(new Request(), new Response());
 
         $this->assertSame(1, $collector->getCallCount());
         $this->assertSame(20.0, $collector->getTotalDurationMs());
@@ -41,7 +42,7 @@ final class RpcProfilerSubscriberTest extends TestCase
 
     public function testSubscriberRecordsFailure(): void
     {
-        $collector = new JsonRpcDataCollector();
+        $collector = ProfilerTestHelper::collector();
         $subscriber = new RpcProfilerSubscriber($collector);
         $meta = new MethodMetadata(
             name: 'demo.fail',

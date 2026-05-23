@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Knetesin\JsonRpcServerBundle\Profiler;
 
+use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
+use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\DataCollector\DataCollector;
@@ -14,6 +16,12 @@ use Symfony\Component\VarDumper\Cloner\Data;
  */
 final class JsonRpcDataCollector extends DataCollector
 {
+    public function __construct(
+        private readonly MethodRegistry $registry,
+        private readonly ?McpToolFilter $mcpFilter = null,
+    ) {
+    }
+
     /**
      * @var list<array{
      *     method: string,
@@ -101,16 +109,32 @@ final class JsonRpcDataCollector extends DataCollector
     public function collect(Request $request, Response $response, ?\Throwable $exception = null): void
     {
         $totalMs = 0.0;
+        $errorCount = 0;
+        $cacheHits = 0;
+        $methodsCalled = [];
         foreach ($this->calls as $call) {
             $totalMs += $call['duration_ms'];
+            if ('error' === $call['status']) {
+                ++$errorCount;
+            }
+            if ($call['cache_hit']) {
+                ++$cacheHits;
+            }
+            $methodsCalled[$call['method']] = true;
         }
+
+        $registry = $this->registry->statistics($this->mcpFilter);
 
         $this->data = [
             'calls' => $this->cloneVar($this->calls),
             'call_count' => \count($this->calls),
+            'error_count' => $errorCount,
+            'cache_hit_count' => $cacheHits,
+            'unique_methods_called' => \count($methodsCalled),
             'total_duration_ms' => round($totalMs, 3),
             'dispatches' => $this->cloneVar($this->dispatches),
             'dispatch_count' => \count($this->dispatches),
+            'registry' => $registry,
         ];
     }
 
@@ -155,6 +179,50 @@ final class JsonRpcDataCollector extends DataCollector
     public function getDispatchCount(): int
     {
         return $this->data['dispatch_count'] ?? 0;
+    }
+
+    public function getErrorCount(): int
+    {
+        return $this->data['error_count'] ?? 0;
+    }
+
+    public function getCacheHitCount(): int
+    {
+        return $this->data['cache_hit_count'] ?? 0;
+    }
+
+    public function getUniqueMethodsCalled(): int
+    {
+        return $this->data['unique_methods_called'] ?? 0;
+    }
+
+    /**
+     * @return array{
+     *     total: int,
+     *     streaming: int,
+     *     deprecated: int,
+     *     secured: int,
+     *     cached: int,
+     *     rate_limited: int,
+     *     mcp_exposed: int,
+     * }
+     */
+    public function getRegistry(): array
+    {
+        return $this->data['registry'] ?? [
+            'total' => 0,
+            'streaming' => 0,
+            'deprecated' => 0,
+            'secured' => 0,
+            'cached' => 0,
+            'rate_limited' => 0,
+            'mcp_exposed' => 0,
+        ];
+    }
+
+    public function getRegisteredMethodCount(): int
+    {
+        return $this->getRegistry()['total'];
     }
 
     public function hasError(): bool

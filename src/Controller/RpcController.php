@@ -15,6 +15,7 @@ use Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException;
 use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
 use Knetesin\JsonRpcServerBundle\Exception\RpcErrorEnvelope;
 use Knetesin\JsonRpcServerBundle\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Http\RpcHttpStatusResolver;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequestParser;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -41,6 +42,7 @@ final class RpcController
         private readonly RpcRequestParser $parser,
         private readonly Dispatcher $dispatcher,
         private readonly LoggerInterface $logger,
+        private readonly RpcHttpStatusResolver $httpStatus,
         private readonly int $defaultMaxRequestSize = 0,
         ?int $jsonEncodeFlags = null,
         /** Custom header that carries the human-readable per-method deprecation reasons. */
@@ -51,6 +53,7 @@ final class RpcController
         private readonly bool $parallelEnabled = false,
         private readonly int $parallelMinBatchSize = 2,
         private readonly int $parallelMaxDepth = 1,
+        private readonly bool $mapHttpStatus = false,
     ) {
         $this->jsonFlags = ($jsonEncodeFlags ?? self::DEFAULT_JSON_FLAGS) | \JSON_THROW_ON_ERROR;
     }
@@ -68,11 +71,10 @@ final class RpcController
         try {
             [$isBatch, $items] = $this->parser->parse($body);
         } catch (RpcException $e) {
-            // JSON-RPC 2.0 is HTTP-status-agnostic: the body's `error.code` is
-            // the canonical signal. We always return 200 here — transports
-            // (load balancers, retry middleware) get a uniform success status
-            // and read the error from the JSON envelope.
-            return $this->json(RpcErrorEnvelope::jsonRpc(null, $e));
+            return $this->json(
+                RpcErrorEnvelope::jsonRpc(null, $e),
+                $this->httpStatus->statusForException($e, $this->mapHttpStatus),
+            );
         }
 
         // Per-method body-size pre-filter: items that exceed their own
@@ -120,19 +122,21 @@ final class RpcController
 
         $retryAfter = $this->maxRetryAfter($responses);
 
+        $httpStatus = $this->httpStatus->statusForResponses($responses, $this->mapHttpStatus);
+
         if (!$isBatch) {
             if ([] === $responses) {
                 return $this->finalize(new Response('', 204), $deprecations, $retryAfter);
             }
 
-            return $this->finalize($this->json($responses[0]), $deprecations, $retryAfter);
+            return $this->finalize($this->json($responses[0], $httpStatus), $deprecations, $retryAfter);
         }
 
         if ([] === $responses) {
             return $this->finalize(new Response('', 204), $deprecations, $retryAfter);
         }
 
-        return $this->finalize($this->json($responses), $deprecations, $retryAfter);
+        return $this->finalize($this->json($responses, $httpStatus), $deprecations, $retryAfter);
     }
 
     /**

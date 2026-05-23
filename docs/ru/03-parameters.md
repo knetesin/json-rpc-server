@@ -10,11 +10,11 @@
 
 Все три можно смешивать с injectable-параметрами (`Context`, `Request`).
 
-## Плоский объект `params` на wire
+## Плоский объект `params` в JSON-запросе
 
 Сколько бы PHP-параметров ни было у handler'а, **клиент всегда шлёт один
-JSON-объект** на верхнем уровне `params` (без вложенного «мешка» на имя
-DTO-параметра):
+JSON-объект** в теле HTTP-запроса — внутри ключа `params` JSON-RPC (без
+вложенного «мешка» на имя DTO-параметра):
 
 ```json
 {
@@ -164,24 +164,24 @@ final readonly class TeamRequest
 }
 ```
 
-На wire:
+Что клиент кладёт в `params`:
 
 ```json
 {"params": {"members": [{"name": "alice"}, {"name": "bob"}]}}
 ```
 
-- **Runtime:** Symfony Serializer денормализует элементы в `MemberDto`, если
+- **Runtime (PHP):** Symfony Serializer денормализует элементы в `MemberDto`, если
   в PHPDoc конструктора указано `list<MemberDto>` (тот же doc, что и без
   бандла). Для валидации элементов — `#[Assert\Valid]`.
-- **MCP / OpenRPC:** `JsonSchemaBuilder` читает PHPDoc через
+- **MCP / OpenRPC (документация):** `JsonSchemaBuilder` читает PHPDoc через
   `symfony/property-info` и добавляет ключ JSON Schema **`items`** — это
-  **под-схема одного элемента**, а не сам массив из `params`.
+  **под-схема одного элемента**, а не JSON-массив из запроса клиента.
 
   Не путать:
 
   | | Назначение | Форма |
   |---|---|---|
-  | **`params.members` на wire** | Реальный JSON-RPC payload | JSON-**массив** объектов: `[{"name":"alice"}, …]` |
+  | **`params.members` в JSON запроса** | То, что реально шлёт Postman / фронт | JSON-**массив** объектов: `[{"name":"alice"}, …]` |
   | **`inputSchema.properties.members.items`** | Правило из [JSON Schema](https://json-schema.org/understanding-json-schema/reference/array) | JSON-**объект** — схема элемента: `{ "type": "object", "properties": { "name": … } }` |
 
   `items` здесь не `[]` — пустой JSON-массив в `items` означал бы tuple-validation
@@ -204,6 +204,46 @@ final readonly class TeamRequest
 
   Для `list<string>` и других scalar-элементов в схеме пока только
   `{ "type": "array" }` без `items` — вложенный `items` строится для object-типов.
+
+### Ассоциативные map (`array<string, T>`)
+
+В PHP поле объявлено как `array`, а клиент в JSON шлёт **объект**
+`{ "ключ": значение, … }`, а не массив `[…]`. Типичные примеры: `filters`,
+`tags`, карты метаданных.
+
+Укажите PHPDoc на promoted-свойстве или параметре конструктора:
+
+```php
+final readonly class ListRequest
+{
+    public function __construct(
+        /** @var array<string, FilterSpec> */
+        public array $filters = [],
+    ) {}
+}
+```
+
+Пример запроса (фрагмент `params`):
+
+```json
+{"params": {"filters": {"groupId": {"mode": "include", "value": [1]}}}}
+```
+
+Сгенерированная схема OpenRPC / MCP (`type: object`, не `type: array` + `items`):
+
+```json
+"filters": {
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "properties": { "mode": { "type": "string" }, "value": { "type": "array" } }
+  }
+}
+```
+
+`@var` — на **свойстве** (promoted ctor param) или на matching `@param` у
+конструктора; docblock только на классе не читается. Union в значении
+(`array<string, A|B>`) → `additionalProperties.oneOf`.
 
 ## Паттерн 2 — `#[Rpc\Param]`
 

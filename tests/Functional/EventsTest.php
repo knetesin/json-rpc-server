@@ -51,6 +51,26 @@ final class EventsTest extends KernelTestCase
         $this->assertSame('test.boom', $captured[1]->method->name);
     }
 
+    public function testStartedAndFailedFiredOnInvalidParamsBeforeHandler(): void
+    {
+        $kernel = $this->boot();
+        $captured = $this->attachCaptureSubscriber($kernel);
+
+        $request = Request::create(
+            '/rpc',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"jsonrpc":"2.0","method":"test.dtoPlusScalar","params":{"street":"Main","city":"NYC","autoId":7,"unknownKey":1},"id":1}',
+        );
+        $kernel->handle($request);
+
+        $this->assertCount(2, $captured);
+        $this->assertInstanceOf(MethodInvocationStartedEvent::class, $captured[0]);
+        $this->assertSame('test.dtoPlusScalar', $captured[0]->method->name);
+        $this->assertInstanceOf(MethodInvocationFailedEvent::class, $captured[1]);
+        $this->assertSame('test.dtoPlusScalar', $captured[1]->method->name);
+    }
+
     /**
      * @return \ArrayObject<int, object>
      */
