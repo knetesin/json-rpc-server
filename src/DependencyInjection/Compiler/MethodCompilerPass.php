@@ -318,9 +318,9 @@ final class MethodCompilerPass implements CompilerPassInterface
      *   4. default_roles is non-empty        → apply default
      *   5. otherwise                         → public (historical behavior)
      *
-     * @param list<string>        $attributeRoles
-     * @param list<string>        $defaultRoles
-     * @param list<string>        $publicPrefixes
+     * @param list<string> $attributeRoles
+     * @param list<string> $defaultRoles
+     * @param list<string> $publicPrefixes
      * @param array<string, true> $publicMethodsIndex
      *
      * @return list<string>
