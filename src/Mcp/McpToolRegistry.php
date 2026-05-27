@@ -27,7 +27,7 @@ final class McpToolRegistry
     }
 
     /**
-     * @return list<array{name: string, description: ?string, roles: list<string>, inputSchema: array<string, mixed>}>
+     * @return list<array{name: string, description: ?string, roles: list<string>, inputSchema: array<string, mixed>, outputSchema?: array<string, mixed>, annotations?: array<string, bool|string>}>
      */
     public function getTools(): array
     {
@@ -37,7 +37,7 @@ final class McpToolRegistry
                 continue;
             }
 
-            $tools[] = [
+            $entry = [
                 'name' => $meta->name,
                 'description' => $meta->getMcpDescription(),
                 'roles' => $meta->roles,
@@ -45,6 +45,20 @@ final class McpToolRegistry
                     ? $meta->inputSchema
                     : ($this->schemaBuilder?->fromMethod($meta) ?? ['type' => 'object', 'properties' => new \stdClass()]),
             ];
+            // outputSchema is omitted when the method's return type is too loose
+            // to schema-ize (array/mixed/void/missing). MCP clients then know
+            // "no advertised shape" rather than getting a meaningless stub.
+            if ([] !== $meta->outputSchema) {
+                $entry['outputSchema'] = $meta->outputSchema;
+            }
+            // annotations is skipped entirely when no hint applies — clients
+            // then fall back to MCP-spec defaults (readOnlyHint=false, …)
+            // rather than seeing a confusing empty object.
+            if ([] !== $meta->mcpAnnotations) {
+                $entry['annotations'] = $meta->mcpAnnotations;
+            }
+
+            $tools[] = $entry;
         }
 
         return $tools;

@@ -14,7 +14,7 @@ final class MethodRegistryStatisticsTest extends TestCase
 {
     public function testStatisticsAggregateRawMetadata(): void
     {
-        $handlers = $this->createMock(ContainerInterface::class);
+        $handlers = $this->createStub(ContainerInterface::class);
         $handlers->method('get')->willReturn(new \stdClass());
 
         $registry = new MethodRegistry([

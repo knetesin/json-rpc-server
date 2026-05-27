@@ -85,6 +85,22 @@ not part of the public contract.
 Two DTO parameters that would share a top-level JSON key are rejected at
 container build time (same rule as runtime resolution).
 
+## Result schema
+
+`result.schema` is sourced in this priority order (same logic as MCP
+`outputSchema`, so the two contracts cannot drift):
+
+1. `#[Rpc\Method(outputSchema: SomeDto::class)]` — schema-ized via
+   `JsonSchemaBuilder`.
+2. `#[Rpc\Method(outputSchema: [...])]` — literal JSON Schema, used as-is.
+3. `__invoke()` return type — scalar → `{type: …}`; class/enum →
+   `JsonSchemaBuilder::fromClass(…)`; `array` → `{type: 'array'}`.
+4. `mixed` / `void` / no return type → empty `schema: {}` (OpenRPC requires
+   the key, but the consumer sees "no advertised shape").
+
+The schema is advisory and never enforced against the actual response — see
+[MCP § Output schema](08-mcp.md#output-schema) for the rationale.
+
 ## Custom `x-` extensions
 
 The bundle emits some non-standard fields under the `x-` namespace. OpenRPC

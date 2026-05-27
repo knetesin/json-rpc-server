@@ -19,6 +19,7 @@ Compiler pass находит их через auto-configuration. Никакой 
     rejectUnknown: true,                       // см. главу о параметрах
     deprecated: 'Use user.find instead.',      // помечает deprecated
     description: 'Looks up a user by email.',  // human-readable; идёт в MCP
+    outputSchema: UserDto::class,              // опционально: см. главы MCP / OpenRPC
 )]
 ```
 

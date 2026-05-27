@@ -22,6 +22,14 @@ final class Method
      *                                shown to clients (logged on every call, sent as Deprecation/Sunset hints when
      *                                appropriate). Hidden from MCP tools by default — restore via
      *                                {@see Configuration} `json_rpc_server.mcp.whitelist_methods` or an explicit #[Rpc\Mcp].
+     * @param class-string|array<string, mixed>|null $outputSchema overrides the response JSON Schema published in
+     *                                                             MCP `tools/list[].outputSchema` and OpenRPC `result.schema`.
+     *                                                             By default the schema is derived from `__invoke()`'s
+     *                                                             return type — pass a class-string to schema-ize a
+     *                                                             different DTO/enum via the bundle's JsonSchemaBuilder,
+     *                                                             or a literal JSON Schema array for fully custom output.
+     *                                                             Advisory only: the schema is a hint for clients/LLMs
+     *                                                             and is never validated against the actual response.
      */
     public function __construct(
         public readonly string $name,
@@ -31,6 +39,7 @@ final class Method
         public readonly ?bool $rejectUnknown = null,
         public readonly ?string $deprecated = null,
         public readonly ?string $description = null,
+        public readonly string|array|null $outputSchema = null,
     ) {
     }
 }

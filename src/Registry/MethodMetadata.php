@@ -17,6 +17,13 @@ final readonly class MethodMetadata
      * @param list<ParameterMetadata> $parameters
      * @param array<string, mixed> $inputSchema JSON Schema for MCP tool input,
      *                                          precomputed at container compile time
+     * @param array<string, mixed> $outputSchema JSON Schema for the method's response,
+     *                                           precomputed at container compile time
+     *                                           from `#[Rpc\Method(outputSchema: …)]`
+     *                                           or, when absent, from `__invoke()`'s
+     *                                           return type. Empty array when the
+     *                                           return type is not informative
+     *                                           (`array`/`mixed`/`void`/missing).
      */
     public function __construct(
         public string $name,
@@ -41,6 +48,16 @@ final readonly class MethodMetadata
         public ?Cache $cache = null,
         public ?int $maxRequestSize = null,
         public array $inputSchema = [],
+        public array $outputSchema = [],
+        /**
+         * Resolved MCP `tools/list[].annotations` payload — empty array when no
+         * field is set. Keys are MCP-spec field names (`title`, `readOnlyHint`,
+         * `destructiveHint`, `idempotentHint`, `openWorldHint`); values are
+         * already coerced (bool|string) so the controller can emit them verbatim.
+         *
+         * @var array<string, bool|string>
+         */
+        public array $mcpAnnotations = [],
     ) {
     }
 

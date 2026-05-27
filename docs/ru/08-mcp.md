@@ -8,7 +8,7 @@ LLM-агенты, etc.). Бандл выставляет любой RPC-мето
 
 | Path | Метод | Возвращает |
 |---|---|---|
-| `/mcp/tools` | GET | `{"tools": [{name, description, roles, inputSchema}]}` |
+| `/mcp/tools` | GET | `{"tools": [{name, description, roles, inputSchema, outputSchema?, annotations?}]}` |
 | `/mcp/call` | POST | `{"content": [...], "structuredContent": ...}` |
 
 Body `/mcp/call`:
@@ -115,6 +115,86 @@ json_rpc_server:
 | `#[Assert\Choice]` | `enum: [...]` |
 
 Незнакомые констрейнты пропускаются (не угадываются).
+
+## Output schema
+
+`/mcp/tools` дополнительно отдаёт `outputSchema` рядом с `inputSchema`, когда
+её получается вывести — MCP-клиент (и LLM за ним) заранее знает, какой формы
+ожидать `structuredContent`. Та же схема переиспользуется в OpenRPC как
+`result.schema`, так что оба контракта совпадают байт-в-байт.
+
+Источники по убыванию приоритета:
+
+1. **`#[Rpc\Method(outputSchema: SomeDto::class)]`** — схематизируется
+   через `JsonSchemaBuilder` (тот же путь, что и DTO в `inputSchema`).
+2. **`#[Rpc\Method(outputSchema: [...])]`** — литеральный JSON Schema
+   массив, используется как есть. Удобно когда ответ — `array` ручной
+   сборки и хочется показать клиентам реальные ключи.
+3. **Тип возврата `__invoke()`** — авто-детект: scalar → `{type: …}`,
+   class/enum → `JsonSchemaBuilder::fromClass(…)`.
+4. Иначе (`array`, `mixed`, `void`, отсутствует) → поле **опускается**.
+   Клиент видит «форма не объявлена», а не бессмысленную заглушку
+   `{type: array}`.
+
+```php
+#[Rpc\Method('user.get', outputSchema: UserDto::class)]
+#[Rpc\Mcp(description: 'Найти пользователя по id.')]
+final class GetUser
+{
+    /** @return array<string, mixed> */
+    public function __invoke(GetUserRequest $req): array { /* ... */ }
+}
+```
+
+Схема **только подсказка**: уходит клиенту как hint и **никогда не валидируется
+против реального ответа**. Расхождение между объявленной формой и тем, что
+вернул `__invoke`, остаётся на совести разработчика — бандл ничего не приводит
+и не отвергает.
+
+## Аннотации тула
+
+MCP `tools/list[].annotations` — это подсказки клиенту (и LLM за ним): нужно
+ли спросить пользователя перед вызовом, можно ли ретраить, и т.п. Они **никогда
+не гейтят исполнение** — за безопасность по-прежнему отвечают `roles`/авторизация.
+
+```php
+#[Rpc\Method('user.delete')]
+#[Rpc\Mcp(
+    description: 'Удалить пользователя по id.',
+    title: 'Удалить пользователя',
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+)]
+final class DeleteUser { /* ... */ }
+```
+
+| Поле | Тип | Дефолт (MCP-спека) | Что значит |
+|---|---|---|---|
+| `title` | string | — | Human-friendly название; клиент фоллбечится на имя метода при отсутствии. |
+| `readOnlyHint` | bool | `false` | true если вызов не меняет состояние окружения. |
+| `destructiveHint` | bool | `true` | true если может удалить или деструктивно изменить state. Имеет смысл только при `readOnlyHint: false`. |
+| `idempotentHint` | bool | `false` | true если повтор вызова с теми же аргументами не даёт дополнительного эффекта. |
+| `openWorldHint` | bool | `true` | true если тул ходит во внешние системы (третьи API, интернет). |
+
+Если поле `null` (дефолт бандла) — значит «не задано»: бандл либо авто-выводит
+его (см. ниже), либо опускает поле, и клиент использует дефолт из MCP-спеки.
+
+### Авто-вывод из `#[Rpc\Cache]`
+
+Метод с `#[Rpc\Cache]` по определению — функция своих аргументов и не должен
+мутировать наблюдаемое состояние при cache hit. Поэтому бандл выставляет:
+
+- `readOnlyHint: true`
+- `idempotentHint: true`
+
+когда ни одно из этих полей не задано явно. Явный `false` в атрибуте всегда
+побеждает — авто-вывод заполняет только `null`-слоты, никогда не перетирает
+намерение разработчика.
+
+`annotations` опускается из entry целиком, если ни одно поле не задано и ни
+один авто-вывод не сработал — клиент видит дефолты спеки, а не пустой объект.
 
 ## Форматы результата
 

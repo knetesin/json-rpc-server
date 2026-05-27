@@ -144,6 +144,7 @@ final class MethodCompilerPass implements CompilerPassInterface
                 'mcpEnabled' => null === $mcpAttr || $mcpAttr->enabled,
                 'mcpDescription' => $mcpAttr?->description,
                 'mcpFormat' => $mcpAttr?->format?->value,
+                'mcpAnnotations' => $this->resolveMcpAnnotations($mcpAttr, $cacheAttr),
                 'rateLimit' => null === $rateLimitAttr ? null : [
                     'limit' => $rateLimitAttr->limit,
                     'intervalSec' => $rateLimitAttr->intervalSec,
@@ -168,6 +169,20 @@ final class MethodCompilerPass implements CompilerPassInterface
                 $schemaBuilder->fromMethod($this->stubMetadata($raw, $parameters)),
                 \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR,
             );
+
+            $outputSchema = $this->resolveOutputSchema(
+                $methodAttr->outputSchema,
+                $returnType,
+                $schemaBuilder,
+                $methodAttr->name,
+                $class,
+            );
+            if ([] !== $outputSchema) {
+                $raw['outputSchemaJson'] = json_encode(
+                    $outputSchema,
+                    \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR,
+                );
+            }
 
             if (isset($methods[$raw['name']])) {
                 throw new \LogicException(\sprintf('Duplicate RPC method name "%s" (in %s and %s)', $raw['name'], $methods[$raw['name']]['serviceClass'], $class));
@@ -230,6 +245,108 @@ final class MethodCompilerPass implements CompilerPassInterface
             }
         }
         $container->setParameter('json_rpc_server.parser_cap', $parserCap);
+    }
+
+    /**
+     * Assembles the MCP `tools/list[].annotations` object from the
+     * `#[Rpc\Mcp]` attribute, applying auto-derivation rules where the user
+     * did not pin a value:
+     *
+     *   - `#[Rpc\Cache]` present → readOnlyHint=true and idempotentHint=true.
+     *     A cached method is, by definition, a function of its arguments
+     *     (otherwise caching by-arg would be unsafe) and must not mutate
+     *     observable state during a hit — both flags follow from caching.
+     *
+     * Explicit booleans on the attribute always win — auto-derive only fills
+     * `null` slots. The returned map omits null keys so the controller can
+     * emit it verbatim into `annotations: {...}` (or skip the key entirely
+     * when the map is empty).
+     *
+     * @return array<string, bool|string>
+     */
+    private function resolveMcpAnnotations(?RpcMcp $mcp, ?RpcCache $cache): array
+    {
+        $out = [];
+
+        $title = $mcp?->title;
+        if (null !== $title && '' !== $title) {
+            $out['title'] = $title;
+        }
+
+        $cached = null !== $cache;
+        $readOnly = $mcp?->readOnlyHint;
+        if (null === $readOnly && $cached) {
+            $readOnly = true;
+        }
+        $idempotent = $mcp?->idempotentHint;
+        if (null === $idempotent && $cached) {
+            $idempotent = true;
+        }
+
+        if (null !== $readOnly) {
+            $out['readOnlyHint'] = $readOnly;
+        }
+        if (null !== $mcp?->destructiveHint) {
+            $out['destructiveHint'] = $mcp->destructiveHint;
+        }
+        if (null !== $idempotent) {
+            $out['idempotentHint'] = $idempotent;
+        }
+        if (null !== $mcp?->openWorldHint) {
+            $out['openWorldHint'] = $mcp->openWorldHint;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Decides what ships as the method's response schema in MCP `tools/list`
+     * and OpenRPC `result.schema`. Precedence:
+     *   1. Explicit `#[Rpc\Method(outputSchema: ClassName::class)]`  → JsonSchemaBuilder::fromClass
+     *   2. Explicit `#[Rpc\Method(outputSchema: ['type' => …])]`     → used as-is
+     *   3. Otherwise derived from `__invoke()`'s return type:
+     *      scalar → `{type: …}`; class/enum → JsonSchemaBuilder::fromClass;
+     *      `array`/`mixed`/`void`/missing → no schema (empty array — caller
+     *      drops it so consumers see "no advertised shape" instead of a
+     *      meaningless `{type: array}` placeholder).
+     *
+     * @param class-string|array<string, mixed>|null $override
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveOutputSchema(
+        string|array|null $override,
+        ?string $returnType,
+        JsonSchemaBuilder $builder,
+        string $methodName,
+        string $class,
+    ): array {
+        if (\is_array($override)) {
+            return $override;
+        }
+        if (\is_string($override)) {
+            if (!class_exists($override) && !enum_exists($override)) {
+                throw new \LogicException(\sprintf(
+                    'RPC method %s (%s): #[Rpc\\Method(outputSchema: …)] must be a class-string or a JSON Schema array; "%s" is not a known class or enum.',
+                    $methodName,
+                    $class,
+                    $override,
+                ));
+            }
+
+            return $builder->fromClass($override);
+        }
+
+        return match ($returnType) {
+            'string' => ['type' => 'string'],
+            'int' => ['type' => 'integer'],
+            'float' => ['type' => 'number'],
+            'bool' => ['type' => 'boolean'],
+            null, 'void', 'mixed', 'array' => [],
+            default => class_exists($returnType) || enum_exists($returnType)
+                ? $builder->fromClass($returnType)
+                : [],
+        };
     }
 
     /**

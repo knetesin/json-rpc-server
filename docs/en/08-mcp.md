@@ -9,7 +9,7 @@ without duplicate code paths.
 
 | Path | Method | Returns |
 |---|---|---|
-| `/mcp/tools` | GET | `{"tools": [{name, description, roles, inputSchema}]}` |
+| `/mcp/tools` | GET | `{"tools": [{name, description, roles, inputSchema, outputSchema?, annotations?}]}` |
 | `/mcp/call` | POST | `{"content": [...], "structuredContent": ...}` |
 
 `/mcp/call` body shape:
@@ -116,6 +116,90 @@ Coverage:
 | `#[Assert\Choice]` | `enum: [...]` |
 
 Unknown constraints are skipped (not guessed).
+
+## Output schema
+
+`/mcp/tools` also ships an `outputSchema` next to `inputSchema` when one can be
+derived — so MCP clients (and the LLMs behind them) know what shape to expect
+from `structuredContent` before they call the tool. The same schema is reused
+as the OpenRPC `result.schema` so the two contracts stay in lockstep.
+
+Sources, in priority order:
+
+1. **`#[Rpc\Method(outputSchema: SomeDto::class)]`** — schema-ized via
+   the bundle's `JsonSchemaBuilder` (same as `inputSchema` DTO mapping).
+2. **`#[Rpc\Method(outputSchema: [...])]`** — a literal JSON Schema array,
+   used as-is. Use this when the response is hand-rolled (`array`, mixed
+   shapes) and you want clients to see the real keys.
+3. **`__invoke()` return type** — auto-detected: scalar → `{type: …}`,
+   class/enum → `JsonSchemaBuilder::fromClass(…)`.
+4. Otherwise (`array`, `mixed`, `void`, missing) → field is **omitted**.
+   Clients then see "no advertised shape" instead of a meaningless
+   `{type: array}` placeholder.
+
+```php
+#[Rpc\Method('user.get', outputSchema: UserDto::class)]
+#[Rpc\Mcp(description: 'Look up a user by id.')]
+final class GetUser
+{
+    /** @return array<string, mixed> */
+    public function __invoke(GetUserRequest $req): array { /* ... */ }
+}
+```
+
+The schema is **advisory only**: it ships as a hint for clients/LLMs and is
+**never validated against the actual response**. Drift between the declared
+shape and what `__invoke` returns is the developer's responsibility — the
+bundle won't silently coerce or reject anything.
+
+## Tool annotations
+
+MCP `tools/list[].annotations` are advisory hints that clients (and the LLMs
+behind them) use to decide whether to ask the user before invoking a tool,
+throttle retries, etc. They never gate execution — security still belongs to
+`roles` / authorization.
+
+```php
+#[Rpc\Method('user.delete')]
+#[Rpc\Mcp(
+    description: 'Delete a user by id.',
+    title: 'Delete user',
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
+)]
+final class DeleteUser { /* ... */ }
+```
+
+| Field | Type | Default (MCP spec) | Meaning |
+|---|---|---|---|
+| `title` | string | — | Human-friendly display label; clients fall back to the method name when absent. |
+| `readOnlyHint` | bool | `false` | True if calling never modifies environment state. |
+| `destructiveHint` | bool | `true` | True if the tool may delete or destructively mutate state. Only meaningful when `readOnlyHint: false`. |
+| `idempotentHint` | bool | `false` | True if repeating the call with identical arguments has no additional effect. |
+| `openWorldHint` | bool | `true` | True if the tool can reach external systems (third-party APIs, internet). |
+
+Leaving a field `null` (the bundle default) means "unset" — the bundle either
+auto-derives it (see below) or omits it so the client uses the MCP-spec
+default.
+
+### Auto-derivation from `#[Rpc\Cache]`
+
+A method that carries `#[Rpc\Cache]` is, by definition, a function of its
+arguments and must not mutate observable state during a cache hit — so the
+bundle fills:
+
+- `readOnlyHint: true`
+- `idempotentHint: true`
+
+whenever neither is set explicitly. Explicit `false` on the attribute always
+wins — auto-derivation only fills `null` slots, never overrides developer
+intent.
+
+`annotations` is omitted from the tool entry entirely when no field is set
+and no auto-derive rule fired, so clients see the spec defaults instead of
+an empty object.
 
 ## Result formats
 

@@ -19,6 +19,7 @@ registration, no central method registry to keep in sync.
     rejectUnknown: true,                      // see Parameters chapter
     deprecated: 'Use user.find instead.',     // marks as deprecated
     description: 'Looks up a user by email.', // human-readable; used in MCP
+    outputSchema: UserDto::class,             // optional: see MCP / OpenRPC chapters
 )]
 ```
 

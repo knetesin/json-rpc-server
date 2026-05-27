@@ -230,6 +230,16 @@ final class OpenRpcDocumentBuilder
      */
     private function buildResult(MethodMetadata $meta): array
     {
+        // Prefer the compile-time outputSchema: it carries the `#[Rpc\Method(outputSchema: …)]`
+        // override when set, and otherwise mirrors what MCP `tools/list[].outputSchema`
+        // advertises — keeping the two contracts in lockstep.
+        if ([] !== $meta->outputSchema) {
+            return ['name' => $meta->name.'_result', 'schema' => $meta->outputSchema];
+        }
+
+        // Fallback for synthetic / test metadata without precomputed schema:
+        // OpenRPC always wants a `schema`, so we still advertise `{type: array}`
+        // here where MCP would omit the field entirely.
         $schema = match ($meta->returnType) {
             'string' => ['type' => 'string'],
             'int' => ['type' => 'integer'],

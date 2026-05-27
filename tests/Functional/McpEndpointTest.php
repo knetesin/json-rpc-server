@@ -109,6 +109,115 @@ final class McpEndpointTest extends KernelTestCase
         $this->assertSame(32, $echo['inputSchema']['properties']['message']['maxLength']);
     }
 
+    public function testOutputSchemaOmittedWhenReturnTypeIsLoose(): void
+    {
+        // test.echo returns `array` — no informative schema can be derived
+        // and no override is set, so MCP `tools/list` omits the field entirely.
+        $tools = $this->getTools();
+        $echo = $this->findToolByName($tools, 'test.echo');
+
+        $this->assertArrayNotHasKey('outputSchema', $echo);
+    }
+
+    public function testOutputSchemaDerivedFromReturnDto(): void
+    {
+        $tools = $this->getTools();
+        $tool = $this->findToolByName($tools, 'test.echoTyped');
+
+        $this->assertArrayHasKey('outputSchema', $tool);
+        $this->assertSame('object', $tool['outputSchema']['type']);
+        $properties = (array) $tool['outputSchema']['properties'];
+        $this->assertSame('string', $properties['pong']['type']);
+        $this->assertSame('integer', $properties['length']['type']);
+        $this->assertEqualsCanonicalizing(['pong', 'length'], $tool['outputSchema']['required']);
+    }
+
+    public function testOutputSchemaOverrideArrayWinsOverReturnType(): void
+    {
+        $tools = $this->getTools();
+        $tool = $this->findToolByName($tools, 'test.echoOverride');
+
+        $this->assertArrayHasKey('outputSchema', $tool);
+        $this->assertSame('object', $tool['outputSchema']['type']);
+        $properties = (array) $tool['outputSchema']['properties'];
+        $this->assertSame('string', $properties['pong']['type']);
+        $this->assertSame('integer', $properties['length']['type']);
+        $this->assertSame(['pong', 'length'], $tool['outputSchema']['required']);
+    }
+
+    public function testOutputSchemaOverrideClassResolvesViaSchemaBuilder(): void
+    {
+        $tools = $this->getTools();
+        $tool = $this->findToolByName($tools, 'test.echoOverrideClass');
+
+        $this->assertArrayHasKey('outputSchema', $tool);
+        $this->assertSame('object', $tool['outputSchema']['type']);
+        $properties = (array) $tool['outputSchema']['properties'];
+        $this->assertSame('string', $properties['pong']['type']);
+        $this->assertSame('integer', $properties['length']['type']);
+    }
+
+    public function testAnnotationsOmittedWhenNothingDeclared(): void
+    {
+        // test.echo carries plain `#[Rpc\Mcp]` with no hints and no cache —
+        // tool entry must not emit an `annotations` key at all.
+        $tools = $this->getTools();
+        $echo = $this->findToolByName($tools, 'test.echo');
+
+        $this->assertArrayNotHasKey('annotations', $echo);
+    }
+
+    public function testAnnotationsPassthroughForExplicitHints(): void
+    {
+        $tools = $this->getTools();
+        $tool = $this->findToolByName($tools, 'user.deleteAnnotated');
+
+        $this->assertSame([
+            'title' => 'Delete user',
+            'readOnlyHint' => false,
+            'destructiveHint' => true,
+            'idempotentHint' => false,
+            'openWorldHint' => false,
+        ], $tool['annotations']);
+    }
+
+    public function testAnnotationsAutoDerivedFromCacheAttribute(): void
+    {
+        $tools = $this->getTools();
+        $tool = $this->findToolByName($tools, 'catalog.cachedListing');
+
+        // Cache present, neither hint set explicitly → both must be true.
+        $this->assertSame([
+            'readOnlyHint' => true,
+            'idempotentHint' => true,
+        ], $tool['annotations']);
+    }
+
+    public function testExplicitHintBeatsCacheAutoDerive(): void
+    {
+        $tools = $this->getTools();
+        $tool = $this->findToolByName($tools, 'catalog.cachedButDestructive');
+
+        // Cache would default both to true, but explicit `false` on the
+        // attribute must win.
+        $this->assertFalse($tool['annotations']['readOnlyHint']);
+        $this->assertFalse($tool['annotations']['idempotentHint']);
+    }
+
+    public function testAnnotationsAutoDerivedWithoutMcpAttribute(): void
+    {
+        // cache.counter_global has #[Rpc\Cache] but no #[Rpc\Mcp]. With
+        // expose_all it surfaces in MCP, and Cache-derived hints must still
+        // apply.
+        $tools = $this->getTools(['mcp' => ['expose_all' => true]]);
+        $tool = $this->findToolByName($tools, 'cache.counter_global');
+
+        $this->assertSame([
+            'readOnlyHint' => true,
+            'idempotentHint' => true,
+        ], $tool['annotations']);
+    }
+
     public function testNoParamMethodEmitsEmptyPropertiesAsObject(): void
     {
         // Per JSON Schema spec `properties` is an object — empty must serialize as `{}`, not `[]`.

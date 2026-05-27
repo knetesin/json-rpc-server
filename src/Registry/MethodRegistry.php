@@ -188,6 +188,10 @@ final class MethodRegistry
             inputSchema: isset($raw['inputSchemaJson'])
                 ? self::normalizeSchema((array) json_decode($raw['inputSchemaJson'], true, self::SCHEMA_JSON_DEPTH, \JSON_THROW_ON_ERROR))
                 : [],
+            outputSchema: isset($raw['outputSchemaJson'])
+                ? self::normalizeSchema((array) json_decode($raw['outputSchemaJson'], true, self::SCHEMA_JSON_DEPTH, \JSON_THROW_ON_ERROR))
+                : [],
+            mcpAnnotations: $raw['mcpAnnotations'] ?? [],
         );
     }
 

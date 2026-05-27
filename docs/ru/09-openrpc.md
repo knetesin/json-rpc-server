@@ -85,6 +85,23 @@ Server-side (`Context`, `Request`, `RpcRequest`) не попадают в кон
 Два DTO с общим top-level JSON-ключом отклоняются при сборке контейнера (как
 и при runtime resolution).
 
+## Result schema
+
+`result.schema` берётся в таком порядке приоритета (та же логика, что у MCP
+`outputSchema` — контракты не расходятся):
+
+1. `#[Rpc\Method(outputSchema: SomeDto::class)]` — схематизируется через
+   `JsonSchemaBuilder`.
+2. `#[Rpc\Method(outputSchema: [...])]` — литеральный JSON Schema, отдаётся
+   как есть.
+3. Тип возврата `__invoke()` — scalar → `{type: …}`; class/enum →
+   `JsonSchemaBuilder::fromClass(…)`; `array` → `{type: 'array'}`.
+4. `mixed` / `void` / нет return type → `schema: {}` (OpenRPC требует ключ,
+   но потребитель видит «форма не объявлена»).
+
+Схема только подсказка — против реального ответа не валидируется (см.
+обоснование в [MCP § Output schema](08-mcp.md#output-schema)).
+
 ## Кастомные `x-` расширения
 
 Бандл эмитит некоторые non-standard поля в `x-` namespace. OpenRPC клиенты

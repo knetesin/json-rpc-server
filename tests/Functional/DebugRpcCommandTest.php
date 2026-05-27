@@ -84,5 +84,18 @@ final class DebugRpcCommandTest extends KernelTestCase
         $dtoPlus = array_column($methods['test.dtoPlusScalar']['params'], 'name');
         sort($dtoPlus);
         $this->assertSame(['autoId', 'city', 'street'], $dtoPlus);
+
+        // outputSchema (from `#[Rpc\Method(outputSchema: …)]` or auto-derived
+        // from the return DTO) must flow into the OpenRPC result.schema so
+        // the two contracts agree byte-for-byte.
+        $this->assertArrayHasKey('test.echoTyped', $methods);
+        $typedResult = $methods['test.echoTyped']['result']['schema'];
+        $this->assertSame('object', $typedResult['type']);
+        $this->assertArrayHasKey('pong', (array) $typedResult['properties']);
+
+        $this->assertArrayHasKey('test.echoOverride', $methods);
+        $overrideResult = $methods['test.echoOverride']['result']['schema'];
+        $this->assertSame('object', $overrideResult['type']);
+        $this->assertSame(['pong', 'length'], $overrideResult['required']);
     }
 }
