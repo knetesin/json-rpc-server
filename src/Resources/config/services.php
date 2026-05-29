@@ -61,6 +61,7 @@ return static function (ContainerConfigurator $container): void {
             abstract_arg('Cache pool reference set by RpcExtension'),
             service('request_stack'),
             service(SecurityUserResolver::class),
+            tagged_iterator('json_rpc_server.rate_limit_bypass'),
         ]);
 
     $services->set(UserScope::class);

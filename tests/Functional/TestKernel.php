@@ -104,6 +104,10 @@ final class TestKernel extends Kernel
             ->load(
                 'Knetesin\\JsonRpcServerBundle\\Tests\\Fixtures\\Cache\\',
                 __DIR__.'/../Fixtures/Cache/',
+            )
+            ->load(
+                'Knetesin\\JsonRpcServerBundle\\Tests\\Fixtures\\RateLimit\\',
+                __DIR__.'/../Fixtures/RateLimit/',
             );
     }
 

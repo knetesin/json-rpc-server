@@ -275,6 +275,10 @@ Four policies (`FixedWindow`, `SlidingWindow`, `TokenBucket`, `NoLimit`),
 three scopes (`User`, `Ip`, `GlobalScope`). Excess calls throw
 `RateLimitExceededException` (code `-32003`) with `retryAfter` in `data`.
 
+Exempt selected callers (verified search-engine crawlers, internal IPs, health
+checks) by implementing `RateLimitBypassInterface` — it's auto-tagged and
+consulted before the counter. See [Rate limiting](docs/en/06-rate-limiting.md).
+
 ### Streaming
 
 ```php

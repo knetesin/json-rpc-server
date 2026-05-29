@@ -20,10 +20,14 @@ final class RateLimitChecker
     /** @var array<string, RateLimiterFactory> */
     private array $factories = [];
 
+    /**
+     * @param iterable<RateLimitBypassInterface> $bypasses
+     */
     public function __construct(
         private readonly CacheItemPoolInterface $cache,
         private readonly RequestStack $requestStack,
         private readonly SecurityUserResolver $users,
+        private readonly iterable $bypasses = [],
     ) {
     }
 
@@ -31,6 +35,15 @@ final class RateLimitChecker
     {
         if (null === $rateLimit || RateLimitPolicy::NoLimit === $rateLimit->policy) {
             return;
+        }
+
+        // Application-supplied exemptions (verified crawlers, internal IPs,
+        // health checks). The first voter to opt out wins — we skip even key
+        // building so a bot never touches the user resolver or the counter.
+        foreach ($this->bypasses as $bypass) {
+            if ($bypass->shouldBypass($method, $rateLimit)) {
+                return;
+            }
         }
 
         $key = $this->buildKey($method->name, $rateLimit->scope);

@@ -92,6 +92,210 @@ The default storage is `cache.app`. To use a different pool, wrap your own
 `RateLimiterFactory` and replace the bundle's `RateLimitChecker` — overrideable
 via standard Symfony DI overrides.
 
+## Exempting requests (extension point)
+
+Sometimes a limit should apply to everyone *except* a few callers — verified
+search-engine crawlers, your own internal IP ranges, platform health checks.
+Rather than replacing `RateLimitChecker`, implement
+`RateLimitBypassInterface` in your app:
+
+```php
+namespace App\Rpc;
+
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimit;
+use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitBypassInterface;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Symfony\Component\HttpFoundation\RequestStack;
+
+final readonly class InternalNetworkBypass implements RateLimitBypassInterface
+{
+    public function __construct(private RequestStack $requestStack) {}
+
+    public function shouldBypass(MethodMetadata $method, RateLimit $rateLimit): bool
+    {
+        $ip = $this->requestStack->getMainRequest()?->getClientIp();
+
+        return null !== $ip && \Symfony\Component\HttpFoundation\IpUtils::checkIp($ip, ['10.0.0.0/8']);
+    }
+}
+```
+
+`RateLimitChecker` consults every implementation **before** consuming a token.
+The first voter to return `true` short-circuits the check — the method runs as
+if it had no rate limit. Returning `false` defers to the next voter and,
+ultimately, to the attribute's normal enforcement.
+
+Key points:
+
+- **Auto-wired.** Any service implementing the interface is auto-tagged
+  (`registerForAutoconfiguration`) and collected — no manual tag needed.
+- **Bypass-only.** A voter can *lift* a limit but cannot tighten one or add a
+  limit where no `#[Rpc\RateLimit]` exists. (If you ever need that, vote on a
+  richer decision type — but start here.)
+- **`MethodMetadata` is passed in,** so a voter can scope itself to specific
+  methods, prefixes, or roles without extra config.
+- **Keep it cheap** — it runs on every rate-limited call. Cache anything slow
+  (DNS, external lookups).
+- Multiple voters compose as an OR chain (bot **or** internal IP **or** health
+  check).
+
+### Example: skip the limit for verified search-engine crawlers
+
+A common need: keep a public method throttled for users, but let Googlebot /
+YandexBot / Bingbot crawl freely. **Never trust the User-Agent alone** — it is
+trivially spoofed. The reliable check is *forward-confirmed reverse DNS*
+(FCrDNS): reverse-resolve the client IP, confirm the hostname belongs to the
+crawler's domain, then forward-resolve that hostname and confirm it maps back to
+the same IP. User-Agent is used only as a *cheap negative filter* so normal
+traffic never triggers a DNS lookup.
+
+```php
+// src/Rpc/SearchEngineBotVerifier.php
+namespace App\Rpc;
+
+use Psr\Cache\CacheItemPoolInterface;
+
+final readonly class SearchEngineBotVerifier
+{
+    public function __construct(private CacheItemPoolInterface $cache) {}
+
+    /** Forward-confirmed hostname for the IP, or null. Cached per IP. */
+    public function confirmedHost(string $ip): ?string
+    {
+        $item = $this->cache->getItem('botptr.'.str_replace([':', '.'], '_', $ip));
+        if ($item->isHit()) {
+            return $item->get(); // string|null
+        }
+
+        $host = $this->resolve($ip);
+        // Verified bots cached for a day; misses kept short so a flood of
+        // forged PTRs can't poison the pool for long.
+        $item->set($host)->expiresAfter(null !== $host ? 86400 : 600);
+        $this->cache->save($item);
+
+        return $host;
+    }
+
+    private function resolve(string $ip): ?string
+    {
+        $host = @gethostbyaddr($ip);
+        if (false === $host || $host === $ip) {
+            return null;
+        }
+        $host = rtrim(strtolower($host), '.');
+
+        // forward-confirm: the hostname must resolve back to the original IP
+        foreach (@dns_get_record($host, \DNS_A | \DNS_AAAA) ?: [] as $r) {
+            if (($r['ip'] ?? null) === $ip || ($r['ipv6'] ?? null) === $ip) {
+                return $host;
+            }
+        }
+
+        return null;
+    }
+}
+```
+
+```php
+// src/Rpc/SearchEngineBotBypass.php
+namespace App\Rpc;
+
+use Knetesin\JsonRpcServerBundle\Attribute\RateLimit;
+use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitBypassInterface;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Symfony\Component\HttpFoundation\RequestStack;
+
+final readonly class SearchEngineBotBypass implements RateLimitBypassInterface
+{
+    /** engine => [User-Agent markers, allowed host suffixes] */
+    private const ENGINES = [
+        'google' => [['Googlebot', 'Storebot-Google', 'GoogleOther'], ['.googlebot.com', '.google.com']],
+        'yandex' => [['YandexBot', 'YandexImages'], ['.yandex.ru', '.yandex.com', '.yandex.net']],
+        'bing'   => [['bingbot', 'BingPreview'], ['.search.msn.com']],
+    ];
+
+    /** @param list<string> $methods methods this bypass applies to */
+    public function __construct(
+        private SearchEngineBotVerifier $verifier,
+        private RequestStack $requestStack,
+        private array $methods = [],
+    ) {}
+
+    public function shouldBypass(MethodMetadata $method, RateLimit $rateLimit): bool
+    {
+        // cheap #1: not one of our methods → normal limit applies
+        if (!\in_array($method->name, $this->methods, true)) {
+            return false;
+        }
+
+        $request = $this->requestStack->getMainRequest();
+        if (null === $request) {
+            return false;
+        }
+
+        // cheap #2: UA doesn't even claim to be a bot → no DNS at all
+        $expectedSuffixes = $this->matchUserAgent($request->headers->get('User-Agent', ''));
+        if (null === $expectedSuffixes) {
+            return false;
+        }
+
+        $ip = $request->getClientIp();
+        if (null === $ip) {
+            return false;
+        }
+
+        // expensive, but only for "bot-like" UAs and cached per IP
+        $host = $this->verifier->confirmedHost($ip);
+        if (null === $host) {
+            return false; // PTR not confirmed → spoofed UA
+        }
+
+        // UA must match the real engine: UA=Googlebot but host=*.yandex → deny
+        foreach ($expectedSuffixes as $suffix) {
+            if (str_ends_with($host, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<string>|null expected host suffixes, or null */
+    private function matchUserAgent(string $ua): ?array
+    {
+        foreach (self::ENGINES as [$needles, $suffixes]) {
+            foreach ($needles as $needle) {
+                if (false !== stripos($ua, $needle)) {
+                    return $suffixes;
+                }
+            }
+        }
+
+        return null;
+    }
+}
+```
+
+```yaml
+# config/services.yaml — SearchEngineBotVerifier autowires cache.app;
+# the bypass is auto-tagged. Only the method list needs declaring.
+services:
+    App\Rpc\SearchEngineBotBypass:
+        arguments:
+            $methods: ['search.query', 'catalog.search', 'suggest.complete']
+```
+
+Request flow: not your method → no work; UA isn't bot-like → no DNS; IP cached →
+instant; otherwise one FCrDNS lookup per IP per day. A spoofed User-Agent never
+wins because the bypass requires DNS confirmation.
+
+> **Behind a proxy/CDN?** `getClientIp()` only honours `X-Forwarded-For` with
+> `framework.trusted_proxies` configured — otherwise you'd be verifying the load
+> balancer's IP. For engines that publish their ranges (Google, Bing) you can
+> skip DNS entirely and match against the published CIDR lists with
+> `IpUtils::checkIp()`; Yandex doesn't publish full ranges, so FCrDNS stays the
+> fallback there.
+
 ## Examples
 
 ### Anonymous API rate limit per IP

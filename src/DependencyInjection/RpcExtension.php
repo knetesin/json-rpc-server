@@ -16,6 +16,7 @@ use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpToolRegistry;
+use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitBypassInterface;
 use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitChecker;
 use OpenTelemetry\API\Globals as OtelGlobals;
 use Sentry\State\HubInterface;
@@ -103,6 +104,11 @@ final class RpcExtension extends Extension
 
         $loader = new PhpFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
         $loader->load('services.php');
+
+        // Any service implementing RateLimitBypassInterface is collected by
+        // RateLimitChecker's tagged_iterator — no manual tag needed in the app.
+        $container->registerForAutoconfiguration(RateLimitBypassInterface::class)
+            ->addTag('json_rpc_server.rate_limit_bypass');
 
         if ($config['profiler']['enabled'] && $container->getParameter('kernel.debug')) {
             $loader->load('services_profiler.php');
