@@ -211,7 +211,13 @@ final class ArgumentResolver
             } catch (PartialDenormalizationException $e) {
                 throw new InvalidParamsException('Invalid params', $this->denormViolations($e), $e);
             } catch (ExtraAttributesException $e) {
-                throw new InvalidParamsException(\sprintf('Unknown parameter(s): %s. Set #[Rpc\\Method(rejectUnknown: false)] (or json_rpc_server.params.reject_unknown: false) to accept extra keys.', implode(', ', $e->getExtraAttributes())), array_values(array_map(static fn (string $name): array => ['path' => $name, 'message' => 'Unknown parameter', 'code' => null], $e->getExtraAttributes())), $e);
+                $extra = $e->getExtraAttributes();
+                $details = [];
+                foreach ($extra as $name) {
+                    $details[] = ['path' => $name, 'message' => 'Unknown parameter', 'code' => null];
+                }
+
+                throw new InvalidParamsException(\sprintf('Unknown parameter(s): %s. Set #[Rpc\\Method(rejectUnknown: false)] (or json_rpc_server.params.reject_unknown: false) to accept extra keys.', implode(', ', $extra)), $details, $e);
             } catch (SerializerException $e) {
                 throw new InvalidParamsException($e->getMessage(), previous: $e);
             }
