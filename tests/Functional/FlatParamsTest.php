@@ -63,6 +63,38 @@ final class FlatParamsTest extends KernelTestCase
         $this->assertSame(-32602, $payload['error']['code']);
     }
 
+    public function testNumericStringCoercedToIntScalar(): void
+    {
+        // Клиент шлёт число строкой (типичный route-параметр) — приводим к int, не TypeError.
+        $kernel = $this->boot();
+        $request = Request::create(
+            '/rpc',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"jsonrpc":"2.0","method":"test.dtoPlusScalar","params":{"street":"Main","city":"NYC","autoId":"7"},"id":1}',
+        );
+        $payload = $this->decodeJsonResponse($kernel->handle($request));
+
+        $this->assertArrayNotHasKey('error', $payload);
+        $this->assertSame(7, $payload['result']['autoId']);
+    }
+
+    public function testIncompatibleScalarRejectedAsInvalidParams(): void
+    {
+        // Несовместимое значение для int → чистый -32602, а не нативный TypeError.
+        $kernel = $this->boot();
+        $request = Request::create(
+            '/rpc',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"jsonrpc":"2.0","method":"test.dtoPlusScalar","params":{"street":"Main","city":"NYC","autoId":"abc"},"id":1}',
+        );
+        $payload = $this->decodeJsonResponse($kernel->handle($request));
+
+        $this->assertSame(-32602, $payload['error']['code']);
+        $this->assertSame('autoId', $payload['error']['data'][0]['path']);
+    }
+
     public function testMcpInputSchemaIsFlat(): void
     {
         // properties at the root MUST include both DTO fields AND the scalar sibling.

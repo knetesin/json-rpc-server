@@ -232,7 +232,7 @@ final class ArgumentResolver
 
         $key = $p->lookupKey();
         if (\array_key_exists($key, $named)) {
-            $value = $named[$key];
+            $value = $this->coerceScalarToDeclaredType($named[$key], $p, $key);
             if ([] !== $p->constraints) {
                 $violations = $this->validator->validate($value, $p->constraints);
                 if (\count($violations) > 0) {
@@ -250,6 +250,54 @@ final class ArgumentResolver
         }
 
         throw new InvalidParamsException(\sprintf('Missing required parameter "%s"', $p->name));
+    }
+
+    /**
+     * Scalars reach handlers raw (only DTOs go through the denormalizer), so a JSON string
+     * for an `int` param would throw native TypeError. Coerce to the declared builtin type
+     * when lossless; reject incompatible values as a clean Invalid params instead.
+     */
+    private function coerceScalarToDeclaredType(mixed $value, ParameterMetadata $p, string $key): mixed
+    {
+        $type = $p->type;
+        if (null === $value || null === $type || !\in_array($type, ['int', 'float', 'string', 'bool'], true)) {
+            return $value;
+        }
+
+        $coerced = match ($type) {
+            'int' => match (true) {
+                \is_int($value) => $value,
+                \is_string($value) && 1 === \preg_match('/^-?\d+$/', $value) => (int) $value,
+                \is_float($value) && (float) (int) $value === $value => (int) $value,
+                default => null,
+            },
+            'float' => match (true) {
+                \is_int($value), \is_float($value) => (float) $value,
+                \is_string($value) && \is_numeric($value) => (float) $value,
+                default => null,
+            },
+            'string' => match (true) {
+                \is_string($value) => $value,
+                \is_int($value), \is_float($value) => (string) $value,
+                default => null,
+            },
+            'bool' => match (true) {
+                \is_bool($value) => $value,
+                \in_array($value, [1, '1', 'true'], true) => true,
+                \in_array($value, [0, '0', 'false'], true) => false,
+                default => null,
+            },
+        };
+
+        if (null === $coerced) {
+            throw new InvalidParamsException('Invalid params', [[
+                'path' => $key,
+                'message' => \sprintf('Expected type "%s", got "%s"', $type, \get_debug_type($value)),
+                'code' => null,
+            ]]);
+        }
+
+        return $coerced;
     }
 
     /**
