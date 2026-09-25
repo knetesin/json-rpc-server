@@ -27,6 +27,17 @@ What the bundle does on call:
 Notifications are **never** cached — they typically carry side effects you want
 applied each time. Errors are **never** cached either.
 
+## Method guards and cache lookups
+
+When at least one [method guard](./04-security.md#method-guards) is
+registered, the dispatcher resolves and validates arguments **before** the
+cache lookup — so a hit also pays for resolution/validation and runs the
+guards. Invalid params fail with `-32602` even when a cached entry exists
+for that key (e.g. a constraint that depends on the current date). With no
+guards registered, the order is
+unchanged: the cache lookup happens first, and a hit skips argument
+resolution entirely.
+
 ## Scopes
 
 A scope is an extra contributor to the cache key — typically used to partition
@@ -55,7 +66,7 @@ final readonly class TenantScope implements CacheScope
 
     public function key(MethodMetadata $method, RpcRequest $request): string
     {
-        return 'tenant:' . $this->tenants->current()?->getId() ?? 'public';
+        return 'tenant:' . ($this->tenants->current()?->getId() ?? 'public');
     }
 }
 ```

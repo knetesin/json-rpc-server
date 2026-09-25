@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -95,6 +96,56 @@ final class FlatParamsTest extends KernelTestCase
         $this->assertSame('autoId', $payload['error']['data'][0]['path']);
     }
 
+    /**
+     * @return iterable<string, array{string, int}>
+     */
+    public static function inRangeIntStrings(): iterable
+    {
+        yield 'leading zeros' => ['"007"', 7];
+        yield 'negative zero' => ['"-0"', 0];
+        yield 'int max' => ['"9223372036854775807"', \PHP_INT_MAX];
+        yield 'int min' => ['"-9223372036854775808"', \PHP_INT_MIN];
+        yield 'long zero padding' => ['"-00000000000000000000009"', -9];
+    }
+
+    #[DataProvider('inRangeIntStrings')]
+    public function testIntStringInsidePhpRangeIsCoerced(string $json, int $expected): void
+    {
+        $payload = $this->callGroupEcho('{"group_id":'.$json.'}');
+
+        $this->assertArrayNotHasKey('error', $payload);
+        $this->assertSame($expected, $payload['result']);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function outOfRangeIntStrings(): iterable
+    {
+        yield 'above int max' => ['9223372036854775808'];
+        yield 'below int min' => ['-9223372036854775809'];
+        yield 'far above' => ['99999999999999999999'];
+        yield 'far below' => ['-99999999999999999999'];
+    }
+
+    #[DataProvider('outOfRangeIntStrings')]
+    public function testIntStringOutsidePhpRangeRejectedAsInvalidParams(string $digits): void
+    {
+        $payload = $this->callGroupEcho('{"group_id":"'.$digits.'"}');
+
+        $this->assertSame(-32602, $payload['error']['code']);
+        $this->assertSame('group_id', $payload['error']['data'][0]['path']);
+        $this->assertSame('Expected type "int", got "string"', $payload['error']['data'][0]['message']);
+    }
+
+    public function testMissingRequiredParamNamesJsonKey(): void
+    {
+        $payload = $this->callGroupEcho('{}');
+
+        $this->assertSame(-32602, $payload['error']['code']);
+        $this->assertSame('Missing required parameter "group_id"', $payload['error']['message']);
+    }
+
     public function testMcpInputSchemaIsFlat(): void
     {
         // properties at the root MUST include both DTO fields AND the scalar sibling.
@@ -131,5 +182,20 @@ final class FlatParamsTest extends KernelTestCase
         $required = $tool['inputSchema']['required'];
         sort($required);
         $this->assertSame(['autoId', 'city', 'street'], $required);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function callGroupEcho(string $params): array
+    {
+        $kernel = $this->boot([], ['Params']);
+
+        return $this->decodeJsonResponse($kernel->handle(Request::create(
+            '/rpc',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"jsonrpc":"2.0","method":"test.params.groupEcho","params":'.$params.',"id":1}',
+        )));
     }
 }

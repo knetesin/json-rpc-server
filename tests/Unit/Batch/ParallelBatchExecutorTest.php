@@ -8,6 +8,7 @@ use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
 use Knetesin\JsonRpcServerBundle\Request\RpcParams;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
@@ -82,6 +83,66 @@ final class ParallelBatchExecutorTest extends TestCase
         $this->assertCount(2, $result['responses']);
         $this->assertSame(-32603, $result['responses'][0]['error']['code']);  // InternalError for the failed item
         $this->assertSame('ok', $result['responses'][1]['result']);            // Other item unaffected
+    }
+
+    public function testFailedNotificationSubcallProducesNoResponseEntry(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse('', ['error' => 'connection refused']),     // notification
+            new MockResponse('{"jsonrpc":"2.0","result":"ok","id":2}'),
+        ]);
+        $executor = $this->executor($http, 'http://api.test/rpc');
+
+        $items = [
+            new RpcRequest(id: null, method: 'audit.log', params: new RpcParams([]), isNotification: true),
+            new RpcRequest(id: 2, method: 'b', params: new RpcParams([]), isNotification: false),
+        ];
+
+        $result = $executor->execute($items, HttpRequest::create('http://api.test/rpc'), 0);
+
+        $this->assertCount(1, $result['responses']);
+        $this->assertSame('ok', $result['responses'][0]['result']);
+        $this->assertCount(2, $result['durations']);
+    }
+
+    public function testNotificationThatCannotBeDispatchedProducesNoResponseEntry(): void
+    {
+        $http = new MockHttpClient(static function (string $method, string $url, array $opt): MockResponse {
+            $body = $opt['body'] ?? '';
+            if (\is_string($body) && str_contains($body, '"audit.log"')) {
+                throw new TransportException('connect failed');
+            }
+
+            return new MockResponse('{"jsonrpc":"2.0","result":"ok","id":2}');
+        });
+        $executor = $this->executor($http, 'http://api.test/rpc');
+
+        $items = [
+            new RpcRequest(id: null, method: 'audit.log', params: new RpcParams([]), isNotification: true),
+            new RpcRequest(id: 2, method: 'b', params: new RpcParams([]), isNotification: false),
+        ];
+
+        $result = $executor->execute($items, HttpRequest::create('http://api.test/rpc'), 0);
+
+        $this->assertCount(1, $result['responses']);
+        $this->assertSame('ok', $result['responses'][0]['result']);
+        $this->assertCount(2, $result['durations']);
+    }
+
+    public function testRegularCallThatCannotBeDispatchedBecomesErrorEnvelope(): void
+    {
+        $http = new MockHttpClient(static function (): MockResponse {
+            throw new TransportException('connect failed');
+        });
+        $executor = $this->executor($http, 'http://api.test/rpc');
+
+        $items = [new RpcRequest(id: 5, method: 'a', params: new RpcParams([]), isNotification: false)];
+
+        $result = $executor->execute($items, HttpRequest::create('http://api.test/rpc'), 0);
+
+        $this->assertCount(1, $result['responses']);
+        $this->assertSame(-32603, $result['responses'][0]['error']['code']);
+        $this->assertSame(5, $result['responses'][0]['id']);
     }
 
     public function testRespectsMaxConcurrencyByChunking(): void

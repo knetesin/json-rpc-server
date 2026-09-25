@@ -192,7 +192,25 @@ final class MethodRegistry
                 ? self::normalizeSchema((array) json_decode($raw['outputSchemaJson'], true, self::SCHEMA_JSON_DEPTH, \JSON_THROW_ON_ERROR))
                 : [],
             mcpAnnotations: $raw['mcpAnnotations'] ?? [],
+            attributes: $this->buildAttributes($raw['attributes'] ?? []),
         );
+    }
+
+    /**
+     * Arguments were validated at compile time by MethodCompilerPass.
+     *
+     * @param list<array{class: class-string, args: array<array-key, mixed>}> $raw
+     *
+     * @return list<object>
+     */
+    private function buildAttributes(array $raw): array
+    {
+        $out = [];
+        foreach ($raw as $entry) {
+            $out[] = new $entry['class'](...$entry['args']);
+        }
+
+        return $out;
     }
 
     /**

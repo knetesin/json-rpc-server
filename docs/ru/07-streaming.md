@@ -91,6 +91,11 @@ method-not-streaming). Результат: обычный JSON-RPC envelope, HTT
 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Streaming endpoint accepts only a single request"},"id":1}
 ```
 
+Неожиданная (не `RpcException`) ошибка, брошенная до старта итератора —
+например, [method guard'ом](./04-security.md#method-guards) — возвращает
+HTTP 500 с тем же JSON-RPC envelope (`error.code: -32603`) вместо HTML
+error-страницы фреймворка.
+
 ### Mid-stream ошибки
 
 После того как итератор выдал хотя бы один ряд, заголовки уже сброшены —

@@ -100,6 +100,14 @@ final class StreamController
             $iterator = $this->dispatcher->call($req);
         } catch (RpcException $e) {
             return $this->envelopeError($req->id, $e, 400);
+        } catch (\Throwable $e) {
+            // Keep the JSON envelope instead of the framework's HTML error page.
+            $this->logger->error('Stream dispatch failure', [
+                'method' => $req->method,
+                'exception' => $e,
+            ]);
+
+            return $this->envelopeError($req->id, new InternalErrorException(previous: $e), 500);
         }
 
         if (!is_iterable($iterator)) {
@@ -210,10 +218,7 @@ final class StreamController
 
     private function envelopeError(string|int|null $id, RpcException $e, int $status): JsonResponse
     {
-        $response = new JsonResponse(RpcErrorEnvelope::jsonRpc($id, $e), $status);
-        $response->setEncodingOptions($this->jsonFlags);
-
-        return $response;
+        return new JsonResponse(json_encode(RpcErrorEnvelope::jsonRpc($id, $e), $this->jsonFlags), $status, [], true);
     }
 
     /**

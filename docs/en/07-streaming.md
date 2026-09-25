@@ -90,6 +90,11 @@ method-not-streaming). Result: plain JSON-RPC envelope, HTTP 4xx/5xx.
 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Streaming endpoint accepts only a single request"},"id":1}
 ```
 
+An unexpected (non-`RpcException`) error raised before the iterator starts —
+for example one thrown by a [method guard](./04-security.md#method-guards) —
+returns HTTP 500 with the same JSON-RPC envelope (`error.code: -32603`)
+instead of the framework's HTML error page.
+
 ### Mid-stream errors
 
 Once the iterator has emitted at least one row, headers are already flushed —

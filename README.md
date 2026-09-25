@@ -253,6 +253,26 @@ scalar parameters over a DTO.
 `any` (default) requires one of the roles; `all` requires every role. Public
 methods omit `roles`.
 
+### Method guards
+
+For rules roles can't express — "may this caller edit *this* group" — add a
+`MethodGuardInterface`. It's auto-tagged, runs after argument resolution and
+before the cache lookup, and sees the resolved arguments plus the handler's
+class attributes:
+
+```php
+final class GroupAccessGuard implements MethodGuardInterface
+{
+    public function check(MethodMetadata $meta, array $args, RpcRequest $request): void
+    {
+        // $args['groupId'] or a DTO property; throw to deny.
+    }
+}
+```
+
+Several guards run in tag priority order; the first exception stops the
+chain. See [Method guards](docs/en/04-security.md#method-guards).
+
 ### Caching
 
 ```php

@@ -27,6 +27,16 @@ final class GetWeather
 Notifications **никогда** не кэшируются — у них обычно side effects, которые
 надо применять каждый раз. Ошибки **тоже** не кэшируются.
 
+## Method guards и cache lookup
+
+Когда зарегистрирован хотя бы один [method guard](./04-security.md#method-guards),
+диспатчер резолвит и валидирует аргументы **до** cache lookup — то есть hit
+тоже платит за резолв/валидацию и прогоняет guard'ы. Невалидные params всё
+равно падают с `-32602`, даже если для этого ключа уже есть закэшированная
+запись (например, constraint, зависящий от текущей даты). Если guard'ов
+нет, порядок не меняется: cache lookup идёт первым, и hit полностью
+пропускает резолв аргументов.
+
 ## Scope'ы
 
 Scope — дополнительный contributor к cache-ключу. Типично используется для
@@ -55,7 +65,7 @@ final readonly class TenantScope implements CacheScope
 
     public function key(MethodMetadata $method, RpcRequest $request): string
     {
-        return 'tenant:' . $this->tenants->current()?->getId() ?? 'public';
+        return 'tenant:' . ($this->tenants->current()?->getId() ?? 'public');
     }
 }
 ```

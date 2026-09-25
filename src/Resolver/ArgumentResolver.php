@@ -249,7 +249,7 @@ final class ArgumentResolver
             return null;
         }
 
-        throw new InvalidParamsException(\sprintf('Missing required parameter "%s"', $p->name));
+        throw new InvalidParamsException(\sprintf('Missing required parameter "%s"', $key));
     }
 
     /**
@@ -267,13 +267,13 @@ final class ArgumentResolver
         $coerced = match ($type) {
             'int' => match (true) {
                 \is_int($value) => $value,
-                \is_string($value) && 1 === \preg_match('/^-?\d+$/', $value) => (int) $value,
+                \is_string($value) && 1 === preg_match('/^-?\d+$/', $value) => $this->intFromDigits($value),
                 \is_float($value) && (float) (int) $value === $value => (int) $value,
                 default => null,
             },
             'float' => match (true) {
                 \is_int($value), \is_float($value) => (float) $value,
-                \is_string($value) && \is_numeric($value) => (float) $value,
+                \is_string($value) && is_numeric($value) => (float) $value,
                 default => null,
             },
             'string' => match (true) {
@@ -292,12 +292,27 @@ final class ArgumentResolver
         if (null === $coerced) {
             throw new InvalidParamsException('Invalid params', [[
                 'path' => $key,
-                'message' => \sprintf('Expected type "%s", got "%s"', $type, \get_debug_type($value)),
+                'message' => \sprintf('Expected type "%s", got "%s"', $type, get_debug_type($value)),
                 'code' => null,
             ]]);
         }
 
         return $coerced;
+    }
+
+    /**
+     * `(int)` saturates out-of-range digit strings at PHP_INT_MAX/MIN; PHP's
+     * numeric-string arithmetic yields a float for them instead, which is how
+     * overflow is detected here.
+     */
+    private function intFromDigits(string $digits): ?int
+    {
+        if (!is_numeric($digits)) {
+            return null;
+        }
+        $number = $digits + 0;
+
+        return \is_int($number) ? $number : null;
     }
 
     /**

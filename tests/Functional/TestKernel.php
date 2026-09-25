@@ -8,6 +8,8 @@ use Knetesin\JsonRpcServerBundle\KnetesinJsonRpcServerBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
@@ -21,9 +23,15 @@ final class TestKernel extends Kernel
 
     /**
      * @param array<string, mixed> $rpcConfig
+     * @param list<string> $extraFixtures sub-directories of tests/Fixtures loaded as
+     *                                    services on top of the always-loaded ones
+     * @param list<array{pass: CompilerPassInterface, type: string, priority: int}> $compilerPasses added like passes from Kernel::build()
      */
-    public function __construct(private readonly array $rpcConfig = [])
-    {
+    public function __construct(
+        private readonly array $rpcConfig = [],
+        private readonly array $extraFixtures = [],
+        private readonly array $compilerPasses = [],
+    ) {
         parent::__construct('test', true);
         $this->instanceId = bin2hex(random_bytes(8));
     }
@@ -45,6 +53,13 @@ final class TestKernel extends Kernel
     public function getLogDir(): string
     {
         return sys_get_temp_dir().'/jsonrpc-bundle/log';
+    }
+
+    protected function build(ContainerBuilder $container): void
+    {
+        foreach ($this->compilerPasses as $entry) {
+            $container->addCompilerPass($entry['pass'], $entry['type'], $entry['priority']);
+        }
     }
 
     protected function configureContainer(ContainerConfigurator $container): void
@@ -94,7 +109,8 @@ final class TestKernel extends Kernel
         ];
         $container->extension('json_rpc_server', array_replace_recursive($rpcDefaults, $this->rpcConfig));
 
-        $container->services()
+        $services = $container->services();
+        $services
             ->defaults()->autowire()->autoconfigure()
             ->set(\Knetesin\JsonRpcServerBundle\Tests\Fixtures\TestAuthenticationListener::class)
             ->load(
@@ -109,6 +125,13 @@ final class TestKernel extends Kernel
                 'Knetesin\\JsonRpcServerBundle\\Tests\\Fixtures\\RateLimit\\',
                 __DIR__.'/../Fixtures/RateLimit/',
             );
+
+        foreach ($this->extraFixtures as $dir) {
+            $services->load(
+                'Knetesin\\JsonRpcServerBundle\\Tests\\Fixtures\\'.$dir.'\\',
+                __DIR__.'/../Fixtures/'.$dir.'/',
+            );
+        }
     }
 
     protected function configureRoutes(RoutingConfigurator $routes): void

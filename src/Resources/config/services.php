@@ -15,6 +15,7 @@ use Knetesin\JsonRpcServerBundle\Controller\McpController;
 use Knetesin\JsonRpcServerBundle\Controller\OpenRpcController;
 use Knetesin\JsonRpcServerBundle\Controller\RpcController;
 use Knetesin\JsonRpcServerBundle\Controller\StreamController;
+use Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler\MethodGuardPass;
 use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
 use Knetesin\JsonRpcServerBundle\Http\RpcHttpStatusResolver;
 use Knetesin\JsonRpcServerBundle\Maker\MakeRpcMethod;
@@ -122,6 +123,7 @@ return static function (ContainerConfigurator $container): void {
             service('event_dispatcher')->nullOnInvalid(),
             service('logger')->nullOnInvalid(),
             '%json_rpc_server.security.expose_role_names%',
+            tagged_iterator(MethodGuardPass::TAG),
         ]);
 
     $services->set(MethodRegistry::class)

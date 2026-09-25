@@ -119,7 +119,10 @@ final class ParallelBatchExecutor
                         'method' => $req->method,
                         'exception' => $e,
                     ]);
-                    $responses[] = RpcErrorEnvelope::jsonRpc($req->id, new InternalErrorException(previous: $e));
+                    // JSON-RPC 2.0: a notification gets no response entry, not even an error.
+                    if (!$req->isNotification) {
+                        $responses[] = RpcErrorEnvelope::jsonRpc($req->id, new InternalErrorException(previous: $e));
+                    }
                     $durations[] = 0.0;
                     continue;
                 }
@@ -151,7 +154,9 @@ final class ParallelBatchExecutor
                         'method' => $entry['request']->method,
                         'exception' => $e,
                     ]);
-                    $responses[] = RpcErrorEnvelope::jsonRpc($entry['request']->id, new InternalErrorException(previous: $e));
+                    if (!$entry['request']->isNotification) {
+                        $responses[] = RpcErrorEnvelope::jsonRpc($entry['request']->id, new InternalErrorException(previous: $e));
+                    }
                 }
                 $durations[] = $duration;
             }

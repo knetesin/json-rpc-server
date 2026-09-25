@@ -12,12 +12,14 @@ use Knetesin\JsonRpcServerBundle\Cache\CacheChecker;
 use Knetesin\JsonRpcServerBundle\Controller\McpController;
 use Knetesin\JsonRpcServerBundle\Controller\RpcController;
 use Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler\MethodCompilerPass;
+use Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler\MethodGuardPass;
 use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpResultFormatter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter;
 use Knetesin\JsonRpcServerBundle\Mcp\McpToolRegistry;
 use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitBypassInterface;
 use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitChecker;
+use Knetesin\JsonRpcServerBundle\Security\MethodGuardInterface;
 use OpenTelemetry\API\Globals as OtelGlobals;
 use Sentry\State\HubInterface;
 use Symfony\Component\Config\FileLocator;
@@ -109,6 +111,9 @@ final class RpcExtension extends Extension
         // RateLimitChecker's tagged_iterator — no manual tag needed in the app.
         $container->registerForAutoconfiguration(RateLimitBypassInterface::class)
             ->addTag('json_rpc_server.rate_limit_bypass');
+        // Same for method guards, collected by Dispatcher in tag priority order.
+        $container->registerForAutoconfiguration(MethodGuardInterface::class)
+            ->addTag(MethodGuardPass::TAG);
 
         if ($config['profiler']['enabled'] && $container->getParameter('kernel.debug')) {
             $loader->load('services_profiler.php');
@@ -250,14 +255,16 @@ final class RpcExtension extends Extension
      *   - "apcu" → ApcuBudgetTracker, when APCu is available; falls back
      *              to Null otherwise with a build-time E_USER_WARNING so
      *              operators notice that the system-wide cap is off.
-     *   - "null" → NullBudgetTracker (no system-wide cap).
+     *   - "null" → NullBudgetTracker (no system-wide cap), also used for
+     *              "apcu" with budget 0.
      *   - any other string → service id implementing BudgetTrackerInterface.
      */
     private function wireBudgetTracker(ContainerBuilder $container, string $store, int $budget): void
     {
         $controllerDef = $container->getDefinition(RpcController::class);
 
-        if ('null' === $store) {
+        // budget 0 means "no global cap"; an ApcuBudgetTracker(0) would reject every reservation.
+        if ('null' === $store || ('apcu' === $store && 0 === $budget)) {
             $container->setDefinition('json_rpc_server.parallel_batch.budget_tracker', new \Symfony\Component\DependencyInjection\Definition(NullBudgetTracker::class));
             $controllerDef->setArgument('$budget', new Reference('json_rpc_server.parallel_batch.budget_tracker'));
 

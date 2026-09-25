@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\KernelInterface;
@@ -34,10 +35,12 @@ abstract class KernelTestCase extends TestCase
 
     /**
      * @param array<string, mixed> $rpcConfig
+     * @param list<string> $extraFixtures see {@see TestKernel::__construct()}
+     * @param list<array{pass: CompilerPassInterface, type: string, priority: int}> $compilerPasses see {@see TestKernel::__construct()}
      */
-    protected function boot(array $rpcConfig = []): TestKernel
+    protected function boot(array $rpcConfig = [], array $extraFixtures = [], array $compilerPasses = []): TestKernel
     {
-        $this->kernel = new TestKernel($rpcConfig);
+        $this->kernel = new TestKernel($rpcConfig, $extraFixtures, $compilerPasses);
         $this->kernel->boot();
 
         return $this->kernel;

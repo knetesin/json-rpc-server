@@ -87,6 +87,156 @@ json_rpc_server:
 Now the message is just `Access denied`. The HTTP body still carries
 `error.code: -32001`, just without the leak.
 
+## Method guards
+
+Roles express static access rules ("has `ROLE_ADMIN`"). Some rules need the
+resolved arguments — "may this caller edit *this* group" — and that's what
+`MethodGuardInterface` is for:
+
+```php
+namespace Knetesin\JsonRpcServerBundle\Security;
+
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
+
+interface MethodGuardInterface
+{
+    public function check(MethodMetadata $meta, array $args, RpcRequest $request): void;
+}
+```
+
+Implement the interface in a service — it's auto-tagged
+`json_rpc_server.method_guard`, no manual wiring needed. `$args` is the
+resolved `__invoke()` argument list keyed by parameter name, in declaration
+order (a DTO instance or scalar values) — the same instances the handler
+receives, so treat them as read-only. Throw to deny.
+
+### Registration and order
+
+Several guards can be registered; they run in tag priority order, higher
+first:
+
+```php
+#[AsTaggedItem(priority: 10)]
+final class GroupAccessGuard implements MethodGuardInterface { /* … */ }
+```
+
+The first exception thrown stops the chain — guards after it do not run.
+
+Without autoconfiguration, tag the service `json_rpc_server.method_guard`
+yourself, with an optional `priority` — in service config or from any
+compiler pass:
+
+```yaml
+services:
+    App\Security\GroupAccessGuard:
+        tags:
+            - { name: json_rpc_server.method_guard, priority: 10 }
+```
+
+The tagged class must implement `MethodGuardInterface`, otherwise the
+container build fails.
+
+### Where guards run
+
+Roles → rate limit → argument resolution + validation → **guards** → cache
+lookup → handler. Guards run on every dispatch path: single calls, every
+batch item, notifications (a denial produces no response — the JSON-RPC rule
+for notifications), streaming (before the handler/iterator is invoked; a
+pre-stream denial returns the usual HTTP 400 JSON envelope — see
+[Streaming](./07-streaming.md)), MCP `tools/call` (HTTP 200 with
+`isError: true`, per MCP convention), and parallel-batch sub-calls (each
+sub-call goes through the same dispatcher). Guards run before the cache
+lookup, so **a cache hit never skips them** — see
+[Method guards and cache lookups](./05-caching.md#method-guards-and-cache-lookups).
+
+With parallel batch enabled, each item runs as an internal HTTP sub-request
+back to the same app. Guards run there too, but the HTTP request they see via
+`RequestStack` carries only the headers listed in
+`parallel_batch.forward_headers`, and the connection comes from the server
+itself, so the client IP is the server's own — or, if the app trusts its own
+address as a proxy, whatever the forwarded `X-Forwarded-For` says. Base guard
+decisions on the security token and the RPC arguments, not on arbitrary
+headers or the client IP.
+
+### Errors
+
+An `RpcException` thrown from a guard reaches the client with its own code,
+message and `rpcData()`. Any other exception becomes `-32603 Internal error`
+(and is logged). Either way, `MethodInvocationFailedEvent` fires. With
+`http_status.enabled`, the HTTP status follows the error code — see
+[Errors](./10-errors.md#http-statuses); e.g. `NotFoundException`'s
+default code -32002 maps to 404, `AccessDeniedException`'s default -32001
+maps to 400.
+
+### Reading the handler's attributes
+
+`$meta->getAttributes(SomeAttribute::class)` returns instances of the
+handler **class's** attributes (not `__invoke()`'s, and not inherited from
+parent classes), pre-built at container compile time — no runtime
+reflection. They're collected only when at least one guard is registered;
+`$meta->attributes` stays empty otherwise. The bundle's own `Rpc\*`
+attributes and `Symfony\Component\DependencyInjection\Attribute\*` are left
+out; an attribute whose class isn't loaded is skipped.
+
+Every other class-level attribute on a handler must be instantiable (valid
+target, repeatable rules, constructor) and take only scalar, array, enum or
+null constructor arguments — the container has to be able to dump it — and
+array keys in those arguments must not contain `%` (the container would read
+them as `%parameter%` placeholders). Otherwise the container build fails,
+naming the offending method and attribute.
+
+### Example
+
+```php
+#[\Attribute(\Attribute::TARGET_CLASS | \Attribute::IS_REPEATABLE)]
+final class Requires
+{
+    public function __construct(
+        public Permission $permission,
+        public string $on,
+    ) {}
+}
+```
+
+```php
+use Knetesin\JsonRpcServerBundle\Attribute as Rpc;
+
+#[Rpc\Method('group.rename')]
+#[Requires(Permission::GroupEdit, on: 'groupId')]
+final class RenameGroup
+{
+    public function __invoke(RenameGroupRequest $request): void { /* … */ }
+}
+```
+
+```php
+use Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException;
+use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
+use Knetesin\JsonRpcServerBundle\Security\MethodGuardInterface;
+
+final class RequiresPermissionGuard implements MethodGuardInterface
+{
+    public function __construct(private PermissionChecker $permissions) {}
+
+    public function check(MethodMetadata $meta, array $args, RpcRequest $request): void
+    {
+        foreach ($meta->getAttributes(Requires::class) as $requires) {
+            $groupId = $args[$requires->on] ?? $args['request']->{$requires->on};
+            if (!$this->permissions->has($requires->permission, $groupId)) {
+                throw new AccessDeniedException('Group access denied');
+            }
+        }
+    }
+}
+```
+
+`AccessDeniedException` takes `(string $message, int $rpcCode = -32001)` —
+pass whichever JSON-RPC error code the client should see (mind the HTTP
+mapping above when `http_status.enabled`), or throw your own `RpcException`
+subclass with a custom `rpcData()`.
+
 ## Firewall configuration
 
 The bundle ships nothing for the firewall side. Typical setup if your `/rpc` is

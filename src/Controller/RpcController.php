@@ -129,14 +129,14 @@ final class RpcController
                 return $this->finalize(new Response('', 204), $deprecations, $retryAfter);
             }
 
-            return $this->finalize($this->json($responses[0], $httpStatus), $deprecations, $retryAfter);
+            return $this->finalize($this->responsesJson($responses[0], false, $httpStatus), $deprecations, $retryAfter);
         }
 
         if ([] === $responses) {
             return $this->finalize(new Response('', 204), $deprecations, $retryAfter);
         }
 
-        return $this->finalize($this->json($responses, $httpStatus), $deprecations, $retryAfter);
+        return $this->finalize($this->responsesJson($responses, true, $httpStatus), $deprecations, $retryAfter);
     }
 
     /**
@@ -272,10 +272,51 @@ final class RpcController
 
     private function json(mixed $payload, int $status = 200): JsonResponse
     {
-        $response = new JsonResponse($payload, $status);
-        $response->setEncodingOptions($this->jsonFlags);
+        return new JsonResponse(json_encode($payload, $this->jsonFlags), $status, [], true);
+    }
 
-        return $response;
+    /**
+     * Encodes the final response once. When that fails, every item that cannot
+     * be encoded on its own (invalid UTF-8, NAN/INF, …) is swapped for an
+     * Internal error envelope, so one bad result doesn't take down the whole batch.
+     *
+     * @param array<string, mixed>|list<array<string, mixed>> $payload single envelope or batch list
+     */
+    private function responsesJson(array $payload, bool $isBatch, int $status): JsonResponse
+    {
+        try {
+            return $this->json($payload, $status);
+        } catch (\JsonException $e) {
+            /** @var list<array<string, mixed>> $items */
+            $items = $isBatch ? $payload : [$payload];
+            foreach ($items as $i => $item) {
+                try {
+                    // Wrapped like in the batch list so the depth limit applies identically.
+                    json_encode($isBatch ? [$item] : $item, $this->jsonFlags);
+                } catch (\JsonException $itemError) {
+                    $this->logger->error('RPC response encoding failure', [
+                        'id' => $item['id'] ?? null,
+                        'exception' => $itemError,
+                    ]);
+                    $items[$i] = RpcErrorEnvelope::jsonRpc($this->envelopeId($item), new InternalErrorException(previous: $itemError));
+                }
+            }
+
+            return $this->json(
+                $isBatch ? $items : $items[0],
+                $this->httpStatus->statusForResponses($items, $this->mapHttpStatus),
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $envelope
+     */
+    private function envelopeId(array $envelope): string|int|null
+    {
+        $id = $envelope['id'] ?? null;
+
+        return \is_string($id) || \is_int($id) ? $id : null;
     }
 
     /**

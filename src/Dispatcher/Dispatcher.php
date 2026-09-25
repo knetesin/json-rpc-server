@@ -13,8 +13,10 @@ use Knetesin\JsonRpcServerBundle\Exception\AccessDeniedException;
 use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitChecker;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Registry\MethodRegistry;
+use Knetesin\JsonRpcServerBundle\Registry\ParameterMetadata;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Knetesin\JsonRpcServerBundle\Resolver\ArgumentResolver;
+use Knetesin\JsonRpcServerBundle\Security\MethodGuardInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -25,6 +27,11 @@ final class Dispatcher
 {
     private readonly LoggerInterface $logger;
 
+    private readonly bool $hasGuards;
+
+    /**
+     * @param iterable<MethodGuardInterface> $guards run in iteration order (tag priority)
+     */
     public function __construct(
         private readonly MethodRegistry $registry,
         private readonly ArgumentResolver $resolver,
@@ -36,8 +43,11 @@ final class Dispatcher
         ?LoggerInterface $logger = null,
         /** Whether AccessDenied messages name the missing role(s). */
         private readonly bool $exposeRoleNames = true,
+        private readonly iterable $guards = [],
     ) {
         $this->logger = $logger ?? new NullLogger();
+        // tagged_iterator is Countable: with no guards the dispatch path stays as in 1.6.
+        $this->hasGuards = !is_countable($guards) || \count($guards) > 0;
     }
 
     public function call(RpcRequest $request, bool $applyRateLimit = true): mixed
@@ -62,6 +72,15 @@ final class Dispatcher
                 $this->rateLimitChecker?->check($meta, $meta->rateLimit);
             }
 
+            // Guards need resolved arguments and must run before the cache
+            // lookup, otherwise a hit would bypass them. Without guards the
+            // lookup stays first, so hits still skip argument resolution.
+            $args = null;
+            if ($this->hasGuards) {
+                $args = $this->resolver->resolve($meta, $request);
+                $this->runGuards($meta, $args, $request);
+            }
+
             // Cache lookup — skip for notifications (they typically carry side
             // effects the client wants applied each time) and for unset cache.
             $cacheable = null !== $meta->cache && null !== $this->cacheChecker && !$request->isNotification;
@@ -78,7 +97,7 @@ final class Dispatcher
             if (!\is_callable($handler)) {
                 throw new \LogicException(\sprintf('RPC method "%s" handler is not invokable.', $request->method));
             }
-            $args = $this->resolver->resolve($meta, $request);
+            $args ??= $this->resolver->resolve($meta, $request);
 
             $result = $handler(...$args);
             // Normalize before caching so the pool stores plain arrays/scalars
@@ -111,6 +130,20 @@ final class Dispatcher
                 microtime(true) - $startedAt,
             ));
             throw $e;
+        }
+    }
+
+    /**
+     * @param list<mixed> $args
+     */
+    private function runGuards(MethodMetadata $meta, array $args, RpcRequest $request): void
+    {
+        $named = array_combine(
+            array_map(static fn (ParameterMetadata $p): string => $p->name, $meta->parameters),
+            $args,
+        );
+        foreach ($this->guards as $guard) {
+            $guard->check($meta, $named, $request);
         }
     }
 

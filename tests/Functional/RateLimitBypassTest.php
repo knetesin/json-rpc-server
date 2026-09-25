@@ -33,8 +33,10 @@ final class RateLimitBypassTest extends KernelTestCase
     {
         $kernel = $this->boot();
 
-        $this->assertSame(['ok' => true], $this->call($kernel, bypass: false)['result']);
-        $this->assertSame(['ok' => true], $this->call($kernel, bypass: false)['result']);
+        $first = $this->call($kernel, bypass: false);
+        $this->assertSame(['ok' => true], $first['result']);
+        $second = $this->call($kernel, bypass: false);
+        $this->assertSame(['ok' => true], $second['result']);
 
         $third = $this->call($kernel, bypass: false);
         $this->assertSame(-32003, $third['error']['code']);

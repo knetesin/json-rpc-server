@@ -25,6 +25,7 @@ use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 use Symfony\Component\Validator\Constraint;
@@ -67,6 +68,7 @@ final class MethodCompilerPass implements CompilerPassInterface
         $handlersPublic = (bool) $container->getParameter('json_rpc_server.handlers.public');
         $handlersShared = (bool) $container->getParameter('json_rpc_server.handlers.shared');
         $taggedIds = array_keys($container->findTaggedServiceIds(self::TAG));
+        $parameterBag = $container->getParameterBag();
         $methods = [];
         $handlerRefs = [];
         $scopeRefs = [
@@ -188,7 +190,7 @@ final class MethodCompilerPass implements CompilerPassInterface
                 throw new \LogicException(\sprintf('Duplicate RPC method name "%s" (in %s and %s)', $raw['name'], $methods[$raw['name']]['serviceClass'], $class));
             }
 
-            $methods[$raw['name']] = $raw;
+            $methods[$raw['name']] = $this->escapeFreeText($raw, $parameterBag);
             $handlerRefs[$raw['name']] = new Reference($serviceId);
 
             // Visibility and sharing semantics come from json_rpc_server.handlers.* config.
@@ -418,6 +420,35 @@ final class MethodCompilerPass implements CompilerPassInterface
         }
 
         return $out;
+    }
+
+    /**
+     * Escapes "%" in free-text fields so the container does not read them as
+     * %parameter% placeholders ("10%-20%" would fail the build); the dumper
+     * turns "%%" back into "%". Roles, cache pool/tags and the other fields
+     * stay unescaped, so %param% and %env()% there still resolve.
+     *
+     * @param array<string, mixed> $raw
+     *
+     * @return array<string, mixed>
+     */
+    private function escapeFreeText(array $raw, ParameterBagInterface $bag): array
+    {
+        foreach (['description', 'mcpDescription', 'deprecated', 'mcpAnnotations', 'inputSchemaJson', 'outputSchemaJson'] as $key) {
+            if (\array_key_exists($key, $raw)) {
+                $raw[$key] = $bag->escapeValue($raw[$key]);
+            }
+        }
+        if (\is_array($raw['parameters'])) {
+            foreach ($raw['parameters'] as $i => $parameter) {
+                if (\is_array($parameter)) {
+                    $raw['parameters'][$i]['default'] = $bag->escapeValue($parameter['default'] ?? null);
+                    $raw['parameters'][$i]['constraints'] = $bag->escapeValue($parameter['constraints'] ?? []);
+                }
+            }
+        }
+
+        return $raw;
     }
 
     /**

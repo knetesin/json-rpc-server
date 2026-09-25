@@ -58,7 +58,36 @@ final readonly class MethodMetadata
          * @var array<string, bool|string>
          */
         public array $mcpAnnotations = [],
+        /**
+         * Class-level attributes of the handler, built from compile-time data.
+         * Filled only when at least one method guard is registered; the
+         * bundle's own and Symfony DI attributes are left out.
+         *
+         * @var list<object>
+         */
+        public array $attributes = [],
     ) {
+    }
+
+    /**
+     * Handler attributes that are instances of $class, in declaration order.
+     *
+     * @template T of object
+     *
+     * @param class-string<T> $class
+     *
+     * @return list<T>
+     */
+    public function getAttributes(string $class): array
+    {
+        $out = [];
+        foreach ($this->attributes as $attribute) {
+            if ($attribute instanceof $class) {
+                $out[] = $attribute;
+            }
+        }
+
+        return $out;
     }
 
     /** Convenience: attribute present AND not explicitly disabled. */

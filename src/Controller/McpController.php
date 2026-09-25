@@ -126,10 +126,7 @@ final class McpController
 
     private function json(mixed $payload, int $status = 200): JsonResponse
     {
-        $response = new JsonResponse($payload, $status);
-        $response->setEncodingOptions($this->jsonFlags);
-
-        return $response;
+        return new JsonResponse(json_encode($payload, $this->jsonFlags), $status, [], true);
     }
 
     /**
