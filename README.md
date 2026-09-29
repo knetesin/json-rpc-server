@@ -479,7 +479,7 @@ json_rpc_server:
         format_header: 'X-Mcp-Format'
         format_query: 'format'
         default_format: json        # json | pretty_json | markdown | plain | toon
-        apply_rate_limit: false     # apply #[Rpc\RateLimit] on /mcp/call
+        apply_rate_limit: true      # apply #[Rpc\RateLimit] on /mcp/call
         expose_all: false           # every RPC method becomes an MCP tool unless excluded
         exclude_prefixes: []
         exclude_methods: []
@@ -488,6 +488,11 @@ json_rpc_server:
         markdown:
             max_table_rows: 25      # above this `markdown` falls back to JSON
             max_table_cols: 6
+
+    # ---------- parallel batch (off by default, see docs/en/02-methods.md) ----------
+    parallel_batch:
+        enabled: false
+        self_url: ~                 # required when enabled, e.g. 'http://127.0.0.1/rpc'
 
     # ---------- observability (all opt-in) ----------
     logging:

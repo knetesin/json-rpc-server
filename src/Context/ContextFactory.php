@@ -6,6 +6,7 @@ namespace Knetesin\JsonRpcServerBundle\Context;
 
 use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Security\Core\Role\RoleHierarchyInterface;
 
 final class ContextFactory
 {
@@ -17,6 +18,11 @@ final class ContextFactory
         private readonly SecurityUserResolver $users,
         /** Header read for a client-supplied request id. Empty string disables header lookup. */
         private readonly string $requestIdHeader = 'X-Request-Id',
+        /**
+         * Expands token roles through `security.role_hierarchy` so Context::$roles
+         * matches what isGranted() sees. Null (no security-bundle) keeps raw roles.
+         */
+        private readonly ?RoleHierarchyInterface $roleHierarchy = null,
     ) {
     }
 
@@ -45,6 +51,9 @@ final class ContextFactory
 
         $user = $this->users->getUser();
         $roles = $this->users->getRoles();
+        if (null !== $this->roleHierarchy && [] !== $roles) {
+            $roles = $this->roleHierarchy->getReachableRoleNames($roles);
+        }
 
         return new Context(
             methodName: $methodName,

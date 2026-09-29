@@ -22,12 +22,47 @@ final class RpcRequestParser
     }
 
     /**
-     * Parses a JSON-RPC payload in one pass and returns both the batch flag
-     * and the parsed items, so callers don't decode the body twice.
+     * Strict variant of {@see self::parseItems()}: parses a JSON-RPC payload in
+     * one pass and returns both the batch flag and the parsed items, so callers
+     * don't decode the body twice. Any invalid batch item fails the whole payload.
      *
      * @return array{bool, list<RpcRequest>}
+     *
+     * @throws ParseException when the body is not valid JSON
+     * @throws InvalidRequestException when the payload or any batch item is not a valid request
+     * @throws RequestTooLargeException when the body exceeds the parser cap
      */
     public function parse(string $body): array
+    {
+        [$isBatch, $items] = $this->parseItems($body);
+
+        $requests = [];
+        foreach ($items as $item) {
+            if ($item instanceof InvalidRequestException) {
+                throw $item;
+            }
+            $requests[] = $item;
+        }
+
+        return [$isBatch, $requests];
+    }
+
+    /**
+     * Parses a JSON-RPC payload, keeping invalid batch items in place instead of
+     * failing the whole batch (JSON-RPC 2.0 §6: each invalid item gets its own
+     * -32600 response with `id: null`).
+     *
+     * Payload-level failures still throw: invalid JSON, a body over the parser
+     * cap, a non-batch invalid request, and an empty batch `[]`. So an
+     * {@see InvalidRequestException} entry can only appear when the batch flag is true.
+     *
+     * @return array{bool, list<RpcRequest|InvalidRequestException>} batch flag and the items in payload order
+     *
+     * @throws ParseException when the body is not valid JSON
+     * @throws InvalidRequestException when the payload is neither a valid single request nor a non-empty batch
+     * @throws RequestTooLargeException when the body exceeds the parser cap
+     */
+    public function parseItems(string $body): array
     {
         $this->guardSize($body);
         $decoded = $this->decode($body);
@@ -41,7 +76,16 @@ final class RpcRequestParser
                 throw new InvalidRequestException('Empty batch');
             }
 
-            return [true, array_values(array_map($this->parseOne(...), $decoded))];
+            $items = [];
+            foreach ($decoded as $raw) {
+                try {
+                    $items[] = $this->parseOne($raw);
+                } catch (InvalidRequestException $e) {
+                    $items[] = $e;
+                }
+            }
+
+            return [true, $items];
         }
 
         return [false, [$this->parseOne($decoded)]];
@@ -49,6 +93,10 @@ final class RpcRequestParser
 
     /**
      * @return list<RpcRequest> when the payload is a batch, returns multiple items
+     *
+     * @throws ParseException when the body is not valid JSON
+     * @throws InvalidRequestException when the payload or any batch item is not a valid request
+     * @throws RequestTooLargeException when the body exceeds the parser cap
      */
     public function parseBatch(string $body): array
     {
@@ -57,7 +105,7 @@ final class RpcRequestParser
 
     public function isBatchPayload(string $body): bool
     {
-        return $this->parse($body)[0];
+        return $this->parseItems($body)[0];
     }
 
     private function guardSize(string $body): void

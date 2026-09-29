@@ -32,6 +32,11 @@ namespace Knetesin\JsonRpcServerBundle\Mcp;
  * the contract stable regardless of whether the value came from a fresh call
  * or from the response cache.
  *
+ * The hook may run on a different handler instance than the one whose
+ * `__invoke()` produced the result (handlers are non-shared by default, and on
+ * a cache hit `__invoke()` does not run at all), so `transformMcpResult()`
+ * must depend only on its argument, never on state set during the call.
+ *
  * For batch reshaping across many methods, prefer a custom McpResultFormatter
  * that inspects the MethodMetadata.
  */

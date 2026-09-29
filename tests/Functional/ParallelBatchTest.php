@@ -35,10 +35,17 @@ final class ParallelBatchTest extends KernelTestCase
         $this->assertSame(2, $sink->events[0]->batchSize);
     }
 
+    public function testParallelBatchIsOffByDefault(): void
+    {
+        $kernel = $this->boot();
+
+        $this->assertFalse($kernel->getContainer()->getParameter('json_rpc_server.parallel_batch.enabled'));
+    }
+
     public function testBatchBelowMinSizeStaysSequentialEvenWhenEnabled(): void
     {
         $kernel = $this->boot([
-            'parallel_batch' => ['enabled' => true, 'min_batch_size' => 3, 'budget_store' => 'null'],
+            'parallel_batch' => ['enabled' => true, 'self_url' => 'http://localhost/rpc', 'min_batch_size' => 3, 'budget_store' => 'null'],
         ]);
         $sink = new BatchEventSink();
         $this->attachDecisionListener($kernel, $sink);
@@ -50,7 +57,7 @@ final class ParallelBatchTest extends KernelTestCase
 
     public function testSubcallRequestDoesNotFanOutAgain(): void
     {
-        $kernel = $this->boot(['parallel_batch' => ['enabled' => true, 'max_depth' => 1, 'budget_store' => 'null']]);
+        $kernel = $this->boot(['parallel_batch' => ['enabled' => true, 'self_url' => 'http://localhost/rpc', 'max_depth' => 1, 'budget_store' => 'null']]);
         $sink = new BatchEventSink();
         $this->attachDecisionListener($kernel, $sink);
 
@@ -67,7 +74,7 @@ final class ParallelBatchTest extends KernelTestCase
 
     public function testSingleCallNeverFansOut(): void
     {
-        $kernel = $this->boot(['parallel_batch' => ['enabled' => true, 'min_batch_size' => 2, 'budget_store' => 'null']]);
+        $kernel = $this->boot(['parallel_batch' => ['enabled' => true, 'self_url' => 'http://localhost/rpc', 'min_batch_size' => 2, 'budget_store' => 'null']]);
         $sink = new BatchEventSink();
         $this->attachDecisionListener($kernel, $sink);
 

@@ -13,6 +13,7 @@ use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Serializer\Exception\ExceptionInterface as SerializerException;
 use Symfony\Component\Serializer\Exception\ExtraAttributesException;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\Exception\PartialDenormalizationException;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -20,6 +21,9 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class ArgumentResolver
 {
+    /** Expected types that -32602 details may name; anything else is a class name or internal. */
+    private const array CLIENT_TYPE_NAMES = ['int', 'float', 'string', 'bool', 'true', 'false', 'null', 'array', 'iterable', 'object', 'mixed'];
+
     public function __construct(
         private readonly DenormalizerInterface $denormalizer,
         private readonly ValidatorInterface $validator,
@@ -130,7 +134,13 @@ final class ArgumentResolver
                 throw new InvalidParamsException(\sprintf('Method "%s" DTO parameter has no valid class type.', $method->name));
             }
 
-            return $this->mapPositionalToDto($dtoType, $list);
+            return $this->mapPositionalToDto($method, $dtoType, $list);
+        }
+
+        // No business params: the handler reads the raw envelope itself, same
+        // exemption as assertNoOrphanKeys().
+        if ([] !== $businessParams) {
+            $this->assertPositionalCount($method, \count($businessParams), \count($list));
         }
 
         $named = [];
@@ -149,20 +159,32 @@ final class ArgumentResolver
      *
      * @return array<string, mixed>
      */
-    private function mapPositionalToDto(string $dtoClass, array $list): array
+    private function mapPositionalToDto(MethodMetadata $method, string $dtoClass, array $list): array
     {
-        $ctor = (new \ReflectionClass($dtoClass))->getConstructor();
-        if (null === $ctor) {
-            return [];
-        }
+        $ctorParams = (new \ReflectionClass($dtoClass))->getConstructor()?->getParameters() ?? [];
+        $this->assertPositionalCount($method, \count($ctorParams), \count($list));
+
         $named = [];
-        foreach ($ctor->getParameters() as $i => $p) {
+        foreach ($ctorParams as $i => $p) {
             if (\array_key_exists($i, $list)) {
                 $named[$p->getName()] = $list[$i];
             }
         }
 
         return $named;
+    }
+
+    /**
+     * Positional values beyond the declared parameters have no name to map to;
+     * under rejectUnknown they are refused like unknown named keys.
+     */
+    private function assertPositionalCount(MethodMetadata $method, int $expected, int $given): void
+    {
+        if ($given <= $expected || !$method->rejectUnknown) {
+            return;
+        }
+
+        throw new InvalidParamsException(\sprintf('Too many positional parameters: expected at most %d, got %d', $expected, $given));
     }
 
     /**
@@ -209,7 +231,7 @@ final class ArgumentResolver
                     ],
                 );
             } catch (PartialDenormalizationException $e) {
-                throw new InvalidParamsException('Invalid params', $this->denormViolations($e), $e);
+                throw new InvalidParamsException('Invalid params', $this->denormViolations($e, $dtoNamed), $e);
             } catch (ExtraAttributesException $e) {
                 $extra = $e->getExtraAttributes();
                 $details = [];
@@ -219,7 +241,8 @@ final class ArgumentResolver
 
                 throw new InvalidParamsException(\sprintf('Unknown parameter(s): %s. Set #[Rpc\\Method(rejectUnknown: false)] (or json_rpc_server.params.reject_unknown: false) to accept extra keys.', implode(', ', $extra)), $details, $e);
             } catch (SerializerException $e) {
-                throw new InvalidParamsException($e->getMessage(), previous: $e);
+                // Serializer messages name DTO classes and internals; they stay in `previous` only.
+                throw new InvalidParamsException('Invalid params', previous: $e);
             }
 
             $violations = $this->validator->validate($dto);
@@ -333,19 +356,77 @@ final class ArgumentResolver
     }
 
     /**
+     * @param array<array-key, mixed> $input what was fed to the denormalizer
+     *
      * @return list<array{path: string, message: string, code: ?string}>
      */
-    private function denormViolations(PartialDenormalizationException $e): array
+    private function denormViolations(PartialDenormalizationException $e, array $input): array
     {
         $out = [];
         foreach ($e->getErrors() as $err) {
+            $path = $err->getPath() ?? '';
             $out[] = [
-                'path' => $err->getPath() ?? '',
-                'message' => $err->getMessage(),
+                'path' => $path,
+                // A missing key and an explicit null both arrive as a null value.
+                'message' => 'null' === $err->getCurrentType() && !self::pathExists($input, $path)
+                    ? 'This field is missing.'
+                    : $this->denormMessage($err),
                 'code' => 0 !== $err->getCode() ? (string) $err->getCode() : null,
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * Whether a serializer error path (`a.b[0].c`) names a key present in the input.
+     *
+     * @param array<array-key, mixed> $input
+     */
+    private static function pathExists(array $input, string $path): bool
+    {
+        $node = $input;
+        foreach (preg_split('/[.\[\]]+/', $path, -1, \PREG_SPLIT_NO_EMPTY) ?: [] as $key) {
+            if (!\is_array($node) || !\array_key_exists($key, $node)) {
+                return false;
+            }
+            $node = $node[$key];
+        }
+
+        return true;
+    }
+
+    /**
+     * Client-safe text: the serializer's own message names the DTO class and
+     * internals. Only builtin expected types are echoed back; a class-typed
+     * (date, enum, nested DTO) or unknown expectation gets a generic text.
+     */
+    private function denormMessage(NotNormalizableValueException $err): string
+    {
+        $types = [];
+        foreach ($err->getExpectedTypes() ?? [] as $type) {
+            // Generic arguments carry element types, possibly class names: drop them.
+            $base = (string) preg_replace('/<.*>/', '', $type);
+            foreach (explode('|', $base) as $part) {
+                $part = trim($part, " ?()\t");
+                $part = match ($part) {
+                    'integer' => 'int',
+                    'boolean' => 'bool',
+                    'double' => 'float',
+                    'list' => 'array',
+                    default => $part,
+                };
+                if (!\in_array($part, self::CLIENT_TYPE_NAMES, true)) {
+                    return 'This value is not valid.';
+                }
+                $types[] = $part;
+            }
+        }
+
+        if ([] === $types) {
+            return 'This value is not valid.';
+        }
+
+        return \sprintf('This value should be of type %s.', implode('|', array_unique($types)));
     }
 }

@@ -17,6 +17,8 @@ use Knetesin\JsonRpcServerBundle\Controller\RpcController;
 use Knetesin\JsonRpcServerBundle\Controller\StreamController;
 use Knetesin\JsonRpcServerBundle\DependencyInjection\Compiler\MethodGuardPass;
 use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
+use Knetesin\JsonRpcServerBundle\Http\ClientIpResolver;
+use Knetesin\JsonRpcServerBundle\Http\FanoutClientIpSigner;
 use Knetesin\JsonRpcServerBundle\Http\RpcHttpStatusResolver;
 use Knetesin\JsonRpcServerBundle\Maker\MakeRpcMethod;
 use Knetesin\JsonRpcServerBundle\Mcp\DefaultMcpResultFormatter;
@@ -57,18 +59,26 @@ return static function (ContainerConfigurator $container): void {
         ->arg('$requestIdHeader', '%json_rpc_server.context.request_id_header%');
     $services->set(ArgumentResolver::class);
 
+    // The signer only exists with parallel batch enabled (services_parallel_batch.php).
+    $services->set(ClientIpResolver::class)
+        ->args([
+            service('request_stack'),
+            service(FanoutClientIpSigner::class)->nullOnInvalid(),
+        ]);
+
     $services->set(RateLimitChecker::class)
         ->args([
             abstract_arg('Cache pool reference set by RpcExtension'),
             service('request_stack'),
             service(SecurityUserResolver::class),
             tagged_iterator('json_rpc_server.rate_limit_bypass'),
+            service(ClientIpResolver::class),
         ]);
 
     $services->set(UserScope::class);
 
     $services->set(IpScope::class)
-        ->args([service('request_stack')]);
+        ->args([service('request_stack'), service(ClientIpResolver::class)]);
 
     $services->set(CacheChecker::class)
         ->args([
@@ -78,6 +88,7 @@ return static function (ContainerConfigurator $container): void {
             '%json_rpc_server.cache.max_readable_key_length%',
             '%json_rpc_server.cache.key_prefix%',
             '%json_rpc_server.cache.hash_prefix%',
+            '%json_rpc_server.json.encode_flags%',
         ]);
 
     $services->set(RpcCacheInvalidator::class)
@@ -100,7 +111,8 @@ return static function (ContainerConfigurator $container): void {
         ])
         ->tag('console.command');
 
-    $services->set(OpenRpcDocumentBuilder::class);
+    $services->set(OpenRpcDocumentBuilder::class)
+        ->arg('$exposeRoleNames', '%json_rpc_server.security.expose_role_names%');
 
     $services->set(OpenRpcController::class)
         ->args([
@@ -162,7 +174,8 @@ return static function (ContainerConfigurator $container): void {
             '%json_rpc_server.mcp.whitelist_methods%',
         ]);
 
-    $services->set(McpToolRegistry::class);
+    $services->set(McpToolRegistry::class)
+        ->arg('$exposeRoleNames', '%json_rpc_server.security.expose_role_names%');
 
     $services->set(DefaultMcpResultFormatter::class)
         ->arg('$tableMaxRows', '%json_rpc_server.mcp.markdown.max_table_rows%')

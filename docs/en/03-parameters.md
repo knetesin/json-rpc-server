@@ -96,6 +96,33 @@ The dispatcher:
 3. Throws `InvalidParamsException` (-32602) on either failure, with a list of
    per-field violations in `error.data`.
 
+Denormalization errors are reported with generic, client-safe texts — the
+serializer's own messages name DTO classes and other internals, so they never
+reach the client (the original exception stays as `previous` for server logs):
+
+```json
+{
+  "error": {
+    "code": -32602,
+    "message": "Invalid params",
+    "data": [
+      {"path": "age", "message": "This value should be of type int.", "code": null},
+      {"path": "createdAt", "message": "This value is not valid.", "code": null}
+    ]
+  }
+}
+```
+
+- A required field absent from the params gets `This field is missing.`
+- A wrong value (including an explicit `null` for a non-nullable field) whose
+  expected type is a builtin (`int`, `string`, `bool`, `array`, …) gets
+  `This value should be of type <type>.` — union types are joined with `|`,
+  e.g. `int|null`.
+- A wrong value whose expected type is a class (date, enum, nested DTO) or
+  unknown gets `This value is not valid.`
+- Any other serializer failure (e.g. a custom denormalizer throwing) answers
+  `Invalid params` without `data`.
+
 ### Rejecting unknown fields
 
 By default unknown keys produce an `Invalid params` error:
@@ -114,7 +141,25 @@ By default unknown keys produce an `Invalid params` error:
 }
 ```
 
-Catches client typos. Turn it off per-method when you need backward-compat:
+The same switch covers positional params: a `[...]` array longer than the
+method's declared parameters (or the DTO's constructor arguments, see below)
+is rejected instead of silently dropping the extra values:
+
+```json
+{
+  "error": {
+    "code": -32602,
+    "message": "Too many positional parameters: expected at most 2, got 3"
+  }
+}
+```
+
+Methods without business parameters (only `Context` / `RpcRequest` /
+`Request` injected) are exempt from both checks — they read `params` from the
+envelope themselves.
+
+Catches client typos. Turn it off per-method when you need backward-compat
+(unknown keys and extra positional values are then ignored):
 
 ```php
 #[Rpc\Method('user.legacy_get', rejectUnknown: false)]
@@ -149,7 +194,8 @@ json_rpc_server:
 ```
 
 When enabled, `"params": ["x@y", 25]` maps positionally onto the DTO's
-constructor arguments.
+constructor arguments. More values than constructor arguments is a -32602
+unless `rejectUnknown` is off.
 
 ### Nested DTO property vs array of DTOs
 

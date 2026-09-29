@@ -12,8 +12,12 @@ use Knetesin\JsonRpcServerBundle\RateLimit\RateLimitChecker;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use PHPUnit\Framework\TestCase;
+use Symfony\Bundle\FrameworkBundle\Test\TestBrowserToken;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
+use Symfony\Component\Security\Core\User\InMemoryUser;
 
 final class RateLimitCheckerTest extends TestCase
 {
@@ -65,6 +69,43 @@ final class RateLimitCheckerTest extends TestCase
         $checker->check($method, $rateLimit);
 
         $this->addToAssertionCount(1);
+    }
+
+    public function testUserNamedAnonDoesNotShareBucketWithGuests(): void
+    {
+        $cache = new ArrayAdapter();
+        $stack = $this->stackFrom('203.0.113.7');
+        $storage = new TokenStorage();
+        $checker = new RateLimitChecker($cache, $stack, new SecurityUserResolver($storage));
+        $rateLimit = new RateLimit(limit: 1, intervalSec: 60, scope: RateLimitScope::User);
+
+        $checker->check($this->method(), $rateLimit);  // guest
+
+        $storage->setToken(new TestBrowserToken(['ROLE_USER'], new InMemoryUser('anon', null, ['ROLE_USER'])));
+        $checker->check($this->method(), $rateLimit);  // user "anon" has its own bucket
+
+        $this->expectException(RateLimitExceededException::class);
+        $checker->check($this->method(), $rateLimit);
+    }
+
+    public function testGuestsAreLimitedPerClientIp(): void
+    {
+        $cache = new ArrayAdapter();
+        $rateLimit = new RateLimit(limit: 1, intervalSec: 60, scope: RateLimitScope::User);
+
+        (new RateLimitChecker($cache, $this->stackFrom('203.0.113.7'), new SecurityUserResolver(null)))->check($this->method(), $rateLimit);
+        (new RateLimitChecker($cache, $this->stackFrom('198.51.100.9'), new SecurityUserResolver(null)))->check($this->method(), $rateLimit);
+
+        $this->expectException(RateLimitExceededException::class);
+        (new RateLimitChecker($cache, $this->stackFrom('203.0.113.7'), new SecurityUserResolver(null)))->check($this->method(), $rateLimit);
+    }
+
+    private function stackFrom(string $ip): RequestStack
+    {
+        $stack = new RequestStack();
+        $stack->push(Request::create('/rpc', 'POST', server: ['REMOTE_ADDR' => $ip]));
+
+        return $stack;
     }
 
     private function checker(RateLimitBypassInterface ...$bypasses): RateLimitChecker

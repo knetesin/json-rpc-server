@@ -11,9 +11,10 @@ use Knetesin\JsonRpcServerBundle\Event\StreamIterationFailedEvent;
 use Knetesin\JsonRpcServerBundle\Event\StreamRowEmittedEvent;
 use Knetesin\JsonRpcServerBundle\Exception\InternalErrorException;
 use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
-use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
+use Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException;
 use Knetesin\JsonRpcServerBundle\Exception\RpcErrorEnvelope;
 use Knetesin\JsonRpcServerBundle\Exception\RpcException;
+use Knetesin\JsonRpcServerBundle\Http\RpcHttpStatusResolver;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequestParser;
@@ -33,8 +34,11 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
  *
  * Failure modes:
  *   - errors detected before the iterator starts (parse, method-not-found,
- *     batch>1, method-not-streaming) produce HTTP 4xx/5xx and a plain
- *     JSON-RPC envelope body: { jsonrpc, error: { code, message, data? }, id }
+ *     batch>1, method-not-streaming, access denied, rate limit, invalid
+ *     params, …) produce HTTP 4xx/5xx mapped from the error code by
+ *     RpcHttpStatusResolver (regardless of http_status.enabled) and a plain
+ *     JSON-RPC envelope body: { jsonrpc, error: { code, message, data? }, id }.
+ *     A rate-limit rejection also carries Retry-After.
  *   - errors raised mid-iteration cannot change the HTTP status (headers
  *     have already been flushed). An inline error frame is appended in the
  *     active stream format and the response ends cleanly:
@@ -64,6 +68,7 @@ final class StreamController
         ?int $jsonEncodeFlags = null,
         private readonly ?EventDispatcherInterface $events = null,
         private readonly array $extraHeaders = self::DEFAULT_HEADERS,
+        private readonly RpcHttpStatusResolver $httpStatus = new RpcHttpStatusResolver(),
     ) {
         // JSON_THROW_ON_ERROR is forced regardless — a silently swallowed
         // encoding error mid-stream would corrupt the NDJSON / SSE payload.
@@ -75,31 +80,29 @@ final class StreamController
         try {
             $items = $this->parser->parseBatch($request->getContent());
         } catch (RpcException $e) {
-            return $this->envelopeError(null, $e, 400);
+            return $this->envelopeError(null, $e);
         }
 
         if (1 !== \count($items)) {
-            return $this->envelopeError(null, new InvalidRequestException('Streaming endpoint accepts only a single request'), 400);
+            return $this->envelopeError(null, new InvalidRequestException('Streaming endpoint accepts only a single request'));
         }
 
         $req = $items[0];
 
         try {
             $meta = $this->dispatcher->metadata($req->method);
-        } catch (MethodNotFoundException $e) {
-            return $this->envelopeError($req->id, $e, 404);
         } catch (RpcException $e) {
-            return $this->envelopeError($req->id, $e, 400);
+            return $this->envelopeError($req->id, $e);
         }
 
         if (!$meta->isStreaming) {
-            return $this->envelopeError($req->id, new InvalidRequestException(\sprintf('Method %s is not a streaming method', $req->method)), 400);
+            return $this->envelopeError($req->id, new InvalidRequestException(\sprintf('Method %s is not a streaming method', $req->method)));
         }
 
         try {
             $iterator = $this->dispatcher->call($req);
         } catch (RpcException $e) {
-            return $this->envelopeError($req->id, $e, 400);
+            return $this->envelopeError($req->id, $e);
         } catch (\Throwable $e) {
             // Keep the JSON envelope instead of the framework's HTML error page.
             $this->logger->error('Stream dispatch failure', [
@@ -107,7 +110,7 @@ final class StreamController
                 'exception' => $e,
             ]);
 
-            return $this->envelopeError($req->id, new InternalErrorException(previous: $e), 500);
+            return $this->envelopeError($req->id, new InternalErrorException(previous: $e));
         }
 
         if (!is_iterable($iterator)) {
@@ -116,7 +119,7 @@ final class StreamController
                 'got' => get_debug_type($iterator),
             ]);
 
-            return $this->envelopeError($req->id, new InternalErrorException(), 500);
+            return $this->envelopeError($req->id, new InternalErrorException());
         }
 
         return $this->buildStream($req, $meta, $iterator, $meta->streamFormat ?? StreamFormat::Ndjson);
@@ -216,9 +219,19 @@ final class StreamController
         $this->flush();
     }
 
-    private function envelopeError(string|int|null $id, RpcException $e, int $status): JsonResponse
+    private function envelopeError(string|int|null $id, RpcException $e): JsonResponse
     {
-        return new JsonResponse(json_encode(RpcErrorEnvelope::jsonRpc($id, $e), $this->jsonFlags), $status, [], true);
+        $response = new JsonResponse(
+            json_encode(RpcErrorEnvelope::jsonRpc($id, $e), $this->jsonFlags),
+            $this->httpStatus->statusForException($e, true),
+            [],
+            true,
+        );
+        if ($e instanceof RateLimitExceededException && null !== $e->retryAfter) {
+            $response->headers->set('Retry-After', (string) max(0, $e->retryAfter));
+        }
+
+        return $response;
     }
 
     /**

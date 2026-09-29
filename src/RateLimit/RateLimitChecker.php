@@ -8,6 +8,7 @@ use Knetesin\JsonRpcServerBundle\Attribute\RateLimit;
 use Knetesin\JsonRpcServerBundle\Attribute\RateLimitPolicy;
 use Knetesin\JsonRpcServerBundle\Attribute\RateLimitScope;
 use Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException;
+use Knetesin\JsonRpcServerBundle\Http\ClientIpResolver;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use Psr\Cache\CacheItemPoolInterface;
@@ -28,6 +29,7 @@ final class RateLimitChecker
         private readonly RequestStack $requestStack,
         private readonly SecurityUserResolver $users,
         private readonly iterable $bypasses = [],
+        private readonly ?ClientIpResolver $clientIps = null,
     ) {
     }
 
@@ -100,8 +102,28 @@ final class RateLimitChecker
     {
         return $methodName.'|'.match ($scope) {
             RateLimitScope::GlobalScope => 'global',
-            RateLimitScope::User => 'user:'.$this->users->getUserIdentifier(),
-            RateLimitScope::Ip => 'ip:'.($this->requestStack->getMainRequest()?->getClientIp() ?? 'unknown'),
+            RateLimitScope::User => $this->userKey(),
+            RateLimitScope::Ip => 'ip:'.($this->clientIp() ?? 'unknown'),
         };
+    }
+
+    /**
+     * Guests are limited per client IP; a single shared guest bucket would
+     * let one client exhaust the limit for every anonymous caller.
+     */
+    private function userKey(): string
+    {
+        $user = $this->users->getUser();
+
+        return null === $user
+            ? 'guest-ip:'.($this->clientIp() ?? 'unknown')
+            : 'user:'.$user->getUserIdentifier();
+    }
+
+    private function clientIp(): ?string
+    {
+        return null !== $this->clientIps
+            ? $this->clientIps->clientIp()
+            : $this->requestStack->getMainRequest()?->getClientIp();
     }
 }

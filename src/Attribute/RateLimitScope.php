@@ -9,7 +9,7 @@ enum RateLimitScope: string
     /** Per-method counter shared across the deployment. */
     case GlobalScope = 'global';
 
-    /** Per Symfony security user identifier (falls back to "anon" for guests). */
+    /** Per Symfony security user identifier; guests are limited per client IP instead. */
     case User = 'user';
 
     /** Per client IP (taken from RequestStack). */

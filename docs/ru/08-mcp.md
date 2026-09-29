@@ -11,6 +11,9 @@ LLM-агенты, etc.). Бандл выставляет любой RPC-мето
 | `/mcp/tools` | GET | `{"tools": [{name, description, roles, inputSchema, outputSchema?, annotations?}]}` |
 | `/mcp/call` | POST | `{"content": [...], "structuredContent": ...}` |
 
+`roles` отсутствует, когда `json_rpc_server.security.expose_role_names` равен
+`false`.
+
 Body `/mcp/call`:
 
 ```json
@@ -73,6 +76,10 @@ json_rpc_server:
 
 Operator config (`exclude_*`, `whitelist_*`) бьёт атрибут разработчика — у
 владельца деплоя последнее слово.
+
+Streaming-методы (`#[Rpc\Stream]`) не публикуются никогда, что бы ни говорили
+правила выше: MCP-вызов возвращает один результат и не может нести stream. Их
+нет в `/mcp/tools`, а `/mcp/call` отвечает на них 404, как на неизвестный tool.
 
 ## Полное выключение MCP
 
@@ -251,6 +258,13 @@ final class GetById implements McpResultTransformer
 Запускается после `__invoke` и после нормализации. JSON-RPC `/rpc` ответ не
 затрагивается — только `/mcp/call` видит трансформированный output.
 
+`transformMcpResult()` может выполниться на другом экземпляре handler'а, чем
+тот, что вернул результат: handler'ы по умолчанию non-shared
+(`handlers.shared: false`), а при cache hit `__invoke` не вызывается вовсе.
+Держите метод чистой функцией от `$result` и не опирайтесь на состояние,
+выставленное во время вызова. Экземпляр для этого hook'а создаётся только для
+handler'ов, реализующих интерфейс.
+
 Для bulk-перешейпинга нескольких методов лучше кастомный `McpResultFormatter`
 (декоратор `DefaultMcpResultFormatter`).
 
@@ -264,13 +278,14 @@ final class GetById implements McpResultTransformer
 
 ## Rate limiting для MCP
 
-`#[Rpc\RateLimit]` **не** применяется к `/mcp/call` по дефолту — MCP-трафик
-обычно от доверенного внутреннего агента. Включите для публичного MCP:
+`#[Rpc\RateLimit]` **по дефолту** применяется к `/mcp/call` так же, как к
+`/rpc`, — MCP-endpoint не должен становиться обходом лимитов. Выключайте,
+только если `/mcp/call` доступен исключительно доверенному внутреннему агенту:
 
 ```yaml
 json_rpc_server:
   mcp:
-    apply_rate_limit: true
+    apply_rate_limit: false
 ```
 
 ## HTTP-статусы

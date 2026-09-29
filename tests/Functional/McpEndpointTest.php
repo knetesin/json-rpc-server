@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\McpInstances\CountedTool;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\StreamRejection\ProbeFeed;
 use Symfony\Component\HttpFoundation\Request;
 
 final class McpEndpointTest extends KernelTestCase
@@ -577,9 +579,9 @@ final class McpEndpointTest extends KernelTestCase
         $this->assertStringContainsString('message:', $payload['content'][0]['text']);
     }
 
-    public function testRateLimitBypassedOnMcpByDefault(): void
+    public function testRateLimitBypassedOnMcpWhenConfigDisablesIt(): void
     {
-        $kernel = $this->boot();
+        $kernel = $this->boot(['mcp' => ['apply_rate_limit' => false]]);
         for ($i = 0; $i < 3; ++$i) {
             $request = Request::create(
                 '/mcp/call',
@@ -628,6 +630,53 @@ final class McpEndpointTest extends KernelTestCase
         $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Mcp\McpToolRegistry::class));
         $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Mcp\McpToolFilter::class));
         $this->assertFalse($container->has(\Knetesin\JsonRpcServerBundle\Mcp\JsonSchemaBuilder::class));
+    }
+
+    public function testStreamingMethodsAreNeverListed(): void
+    {
+        // stream_probe.feed carries #[Rpc\Mcp]; stream.tick relies on expose_all.
+        $kernel = $this->boot(['mcp' => ['expose_all' => true, 'whitelist_methods' => ['stream_probe.feed']]], ['StreamRejection']);
+        $payload = $this->decodeJsonResponse($kernel->handle(Request::create('/mcp/tools', 'GET')));
+        $names = array_column($payload['tools'], 'name');
+
+        $this->assertContains('math.add', $names);
+        $this->assertNotContains('stream.tick', $names);
+        $this->assertNotContains('stream_probe.feed', $names);
+    }
+
+    public function testCallingStreamingMethodFailsLikeUnknownTool(): void
+    {
+        $kernel = $this->boot(['mcp' => ['expose_all' => true]], ['StreamRejection']);
+        ProbeFeed::$invoked = false;
+        $request = Request::create(
+            '/mcp/call',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"name":"stream_probe.feed","arguments":{}}',
+        );
+        $response = $kernel->handle($request);
+
+        $this->assertSame(404, $response->getStatusCode());
+        $payload = $this->decodeJsonResponse($response);
+        $this->assertTrue($payload['isError']);
+        $this->assertSame(-32601, $payload['error']['code']);
+        $this->assertFalse(ProbeFeed::$invoked);
+    }
+
+    public function testNonTransformerHandlerIsBuiltOncePerCall(): void
+    {
+        $kernel = $this->boot([], ['McpInstances']);
+        CountedTool::$constructed = 0;
+        $request = Request::create(
+            '/mcp/call',
+            'POST',
+            server: ['CONTENT_TYPE' => 'application/json'],
+            content: '{"name":"mcp_count.plain","arguments":{}}',
+        );
+        $response = $kernel->handle($request);
+
+        $this->assertSame(200, $response->getStatusCode(), 'body: '.$this->responseContent($response));
+        $this->assertSame(1, CountedTool::$constructed);
     }
 
     /**

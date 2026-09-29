@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
 use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
+use Knetesin\JsonRpcServerBundle\Http\ClientIpResolver;
+use Knetesin\JsonRpcServerBundle\Http\FanoutClientIpSigner;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -30,6 +32,13 @@ return static function (ContainerConfigurator $container): void {
             'max_redirects' => 0,
         ]]);
 
+    // A missing kernel.secret fails the container build. An empty one fails on
+    // first read (FrameworkBundle, else the signer's constructor), and since
+    // ClientIpResolver depends on the signer, so does every rate-limited or
+    // IP-scoped call, not only fan-out.
+    $services->set(FanoutClientIpSigner::class)
+        ->args([param('kernel.secret')]);
+
     $services->set(ParallelBatchExecutor::class)
         ->args([
             service('json_rpc_server.parallel_batch.http_client'),
@@ -40,5 +49,7 @@ return static function (ContainerConfigurator $container): void {
             '%json_rpc_server.parallel_batch.self_url%',
             service('logger')->nullOnInvalid(),
             '%json_rpc_server.max_json_depth%',
+            service(FanoutClientIpSigner::class),
+            service(ClientIpResolver::class),
         ]);
 };

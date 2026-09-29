@@ -86,11 +86,11 @@ json_rpc_server:
 
     # ---------- MCP ----------
     mcp:
-        enabled: true
+        enabled: false
         format_header: 'X-Mcp-Format'
         format_query: 'format'
         default_format: json
-        apply_rate_limit: false
+        apply_rate_limit: true
         expose_all: false
         exclude_prefixes: []
         exclude_methods: []
@@ -99,6 +99,19 @@ json_rpc_server:
         markdown:
             max_table_rows: 25
             max_table_cols: 6
+
+    # ---------- parallel batch (opt-in) ----------
+    parallel_batch:
+        enabled: false
+        self_url: ~               # required when enabled, e.g. 'http://127.0.0.1/rpc'
+        min_batch_size: 2
+        max_concurrency: 3
+        budget: 10
+        budget_store: apcu        # apcu | null | <service id>
+        max_depth: 1
+        connect_timeout: 0.5
+        timeout: 10.0
+        forward_headers: [Authorization, X-Request-Id, X-Forwarded-For, X-Forwarded-Proto, traceparent, tracestate]
 
     # ---------- observability (all opt-in) ----------
     logging:
@@ -158,7 +171,9 @@ Default `true` (dev-friendly). When true, `AccessDeniedException` messages
 name the missing role(s): _"One of the following roles is required: ROLE_X,
 ROLE_Y"_. Flip to `false` in prod if your role identifiers leak business
 structure (`ROLE_BILLING_INTERNAL`) — the client then gets a generic
-`Access denied`.
+`Access denied`. `false` also keeps role identifiers out of discovery:
+`/mcp/tools` entries carry no `roles`, and the OpenRPC document carries no
+`x-rpc-roles` / `x-rpc-roles-match`.
 
 ### `security.default_roles` / `public_prefixes` / `public_methods` / `prefix_roles`
 
@@ -209,6 +224,14 @@ uncapped), the parser cap stays `0` regardless of per-method values —
 otherwise a single method with a small cap would silently cap every other
 method at the parser stage.
 
+Inside a batch, each item is checked against its method's limit by the item's
+own size (its re-encoded JSON envelope); an oversized item gets a per-item
+-32600 and the rest of the batch runs. An item that cannot be re-encoded — a
+number beyond float range such as `1e400` decodes to INF — gets a per-item
+-32602, since its size cannot be checked. HTTP 413 is returned only when nothing
+ran: the body exceeds the parser cap, or a single (non-batch) request exceeds
+its method's limit.
+
 ### `max_json_depth`
 
 Default `32`. Maximum `json_decode` nesting depth for incoming RPC / MCP
@@ -217,8 +240,8 @@ payloads. Raise only if your clients legitimately send deep structures.
 ### `http_status.enabled`
 
 Default `false`. When `true`, `/rpc` maps JSON-RPC `error.code` values to HTTP
-status codes (400/404/429/500) similar to `/rpc/stream`. Oversized bodies still
-return **413** even when this flag is off. Batch responses use the highest
+status codes (400/403/404/429/500) similar to `/rpc/stream`. Oversized non-batch
+bodies still return **413** even when this flag is off. Batch responses use the highest
 status among items. Leave disabled in production JSON-RPC clients unless you
 know your callers expect non-200 transports.
 
@@ -413,10 +436,10 @@ method attribute sets one. One of: `json`, `pretty_json`, `markdown`,
 
 ### `mcp.apply_rate_limit`
 
-Default `false`. Whether to apply `#[Rpc\RateLimit]` when a method is
-called via `/mcp/call`. Defaults `false` because MCP traffic typically
-comes from a trusted internal agent, not external clients — flip to `true`
-if you expose MCP publicly.
+Default `true`. Whether to apply `#[Rpc\RateLimit]` when a method is
+called via `/mcp/call`, so the MCP endpoint is limited like `/rpc`. Set
+`false` only when `/mcp/call` is reachable exclusively by a trusted internal
+agent.
 
 ### `mcp.expose_all` / `exclude_prefixes` / `exclude_methods` / `whitelist_methods`
 
@@ -431,6 +454,53 @@ Guards against self-referencing DTOs that would otherwise recurse forever.
 
 Defaults `25` and `6`. Above these the `markdown` MCP format falls back to
 JSON instead of rendering an unwieldy table.
+
+### `parallel_batch.enabled`
+
+Default `false` — parallel batch is off unless you turn it on. See
+[Methods → parallel batches](./02-methods.md#opt-in-parallel-batches-via-loopback-fan-out)
+before enabling. Requires `symfony/http-client`, `self_url` and a non-empty
+`kernel.secret` (`framework.secret`), which keys the HMAC that authenticates
+the client IP forwarded to sub-calls.
+
+### `parallel_batch.self_url`
+
+Default `null`; **required** when `enabled: true`. The absolute `http://` /
+`https://` URL sub-calls are POSTed to, including the RPC path — e.g.
+`http://127.0.0.1/rpc`, or a dedicated worker pool such as
+`http://127.0.0.1/internal/rpc-fanout`. The container build fails when it is
+missing or not an absolute http(s) URL. An env-var value can only be checked
+at runtime: if it is not an absolute http(s) URL, an error is logged and
+batches run sequentially — single calls are unaffected. It is never derived
+from the incoming request: the `Host` header is client-controlled and
+sub-calls carry the forwarded `Authorization` header.
+
+```yaml
+json_rpc_server:
+  parallel_batch:
+    enabled: true
+    self_url: '%env(RPC_SELF_URL)%'
+```
+
+### `parallel_batch.budget` / `budget_store`
+
+Defaults `10` and `apcu`. `budget` caps in-flight sub-calls across all
+concurrent batches; `0` disables the cap. `budget_store: apcu` checks APCu at
+runtime in the serving process: when APCu is unusable there, batches run
+sequentially and a warning is logged once per process. `null` means no
+system-wide cap; any other value is the id of a service implementing
+`BudgetTrackerInterface`.
+
+### `parallel_batch.forward_headers`
+
+Incoming headers re-sent on every sub-call. Default: `Authorization`,
+`X-Request-Id`, `X-Forwarded-For`, `X-Forwarded-Proto`, `traceparent`,
+`tracestate`. `Cookie` is not in the default: with PHP's native (locking)
+session handler the parent holds the session lock and every sub-call blocks
+on it until `timeout`. Cookie-session apps add `Cookie` explicitly, and only
+with non-locking or read-only sessions. The internal headers
+`X-Rpc-Fanout-Depth`, `X-Rpc-Fanout-Client-Ip` and `X-Rpc-Fanout-Signature`
+are always set by the bundle and never copied from the client.
 
 ### Observability
 

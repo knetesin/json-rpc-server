@@ -25,7 +25,10 @@ What the bundle does on call:
 3. Miss → call the handler, normalize the result, store it, dispatch events.
 
 Notifications are **never** cached — they typically carry side effects you want
-applied each time. Errors are **never** cached either.
+applied each time. Errors are **never** cached either, and neither are results
+that cannot be JSON-encoded with the configured `json.encode_flags` (invalid
+UTF-8, `NAN`/`INF`): the call answers -32603 and the next call runs the handler
+again instead of replaying the failure until the TTL expires.
 
 ## Method guards and cache lookups
 
@@ -51,9 +54,13 @@ final class GetMyProfile { /* … */ }
 
 ### Built-in scopes
 
-- **`UserScope`** — partitions by the Symfony user identifier. Falls back to
-  `anon` for unauthenticated calls.
-- **`IpScope`** — partitions by client IP from `RequestStack`.
+- **`UserScope`** — partitions by the Symfony user identifier. Scope key:
+  `user:{userIdentifier}` for authenticated calls, `guest` otherwise.
+- **`IpScope`** — partitions by client IP from `RequestStack`. Scope key:
+  `ip:{ip}`.
+
+A custom scope's key is whatever its `key()` returns. Scope keys matter when
+you purge another caller's entry — see [Invalidation API](#invalidation-api).
 
 ### Custom scopes
 
@@ -163,12 +170,34 @@ final class UpdateUserHandler
 
 | Method | Effect | Needs tag-aware? |
 |---|---|---|
-| `purge(method, params)` | Drop exactly one slot. | No |
+| `purge(method, params, scopeKey?)` | Drop exactly one slot. | No |
 | `purgeMethod(method)` | Drop everything cached under this method. | Yes |
 | `purgeTags(tags, pool?)` | Drop everything stamped with these tags. | Yes |
 | `purgeAll(pool?)` | Wipe the entire pool. | No |
 
 All purges are info-logged so audit trails capture who/what cleared what.
+
+### Purging a scoped entry
+
+For a method with a `scope:`, the slot also depends on whose entry it is.
+Without `scopeKey`, `purge()` computes the scope for the **current caller** —
+fine when users invalidate their own data, wrong when an admin (or a
+background job, which has no user or IP) edits someone else's: the caller's
+own slot is purged and the owner keeps the stale entry. Pass the owner's
+scope key instead:
+
+```php
+// Admin updated alice's profile — drop alice's cached copy, not the admin's.
+$this->cache->purge('user.profile', ['userId' => 42], 'user:alice');
+
+// IpScope / custom scopes: the value their key() produces for the owner.
+$this->cache->purge('geo.lookup', null, 'ip:203.0.113.7');
+```
+
+Passing a `scopeKey` for a method **without** a cache scope throws
+`\InvalidArgumentException` — such a method has a single shared slot, so a
+scope key there is a mistake; call `purge(method, params)` instead. To drop
+every owner's entry at once use `purgeMethod()` or a tag.
 
 ## CLI
 
@@ -194,12 +223,32 @@ bin/console rpc:cache:clear --all --pool=long_lived
 
 ## How keys are built
 
+Methods without a scope get a readable key:
+
 ```
-rpc.cache | {method} | {scope.key()} | sha1({stable_sorted_params})
+{key_prefix}.{method}.sha1({stable_sorted_params})
+e.g. rpc.cache.weather.get.52adfcb52fb68d9bf6baa00f81684b77e3263ae9   ({"city": "Berlin"})
 ```
 
 Stable-sorted means: associative params are sorted by key, list params keep
 their order. Same JSON object regardless of key order → same hash.
 
-Keys longer than 200 characters or containing reserved PSR-6 chars
-(`{}()/\@:`) collapse into `rpc.{sha1}` — backend-safe and bounded.
+If that key is longer than `cache.max_readable_key_length` (default 200) or
+contains characters outside `[A-Za-z0-9_.-]` (e.g. a custom `key_prefix` with
+reserved PSR-6 chars `{}()/\@:`), it collapses into the hashed form.
+
+Entries of **scoped** methods always use the hashed form — scope keys are
+arbitrary strings, and a readable join could not tell method `a.b` from
+method `a` with scope key `b`:
+
+```
+{hash_prefix}.sha1(serialize([{key_prefix}, {method}, {scope key}, sha1({stable_sorted_params})]))
+e.g. rpc.108c12fa023dc0cdaa4b02d5b78350e9873130fd   (user.profile, user:alice, {"userId": 42})
+```
+
+`key_prefix` defaults to `rpc.cache`, `hash_prefix` to `rpc`. `purge()`,
+`purgeMethod()` and tags address the same keys that calls read and write.
+
+Upgrading to 1.7 changes every cache key — readable and hashed ones alike,
+and `UserScope` now keys guests as `guest` instead of `user:anon` — so the
+cache starts cold once; old entries expire by TTL.

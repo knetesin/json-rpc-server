@@ -26,6 +26,7 @@ use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
@@ -252,9 +253,10 @@ final class RpcExtension extends Extension
      * BudgetTrackerInterface service and wires it into RpcController.
      *
      * Accepted shorthand values:
-     *   - "apcu" → ApcuBudgetTracker, when APCu is available; falls back
-     *              to Null otherwise with a build-time E_USER_WARNING so
-     *              operators notice that the system-wide cap is off.
+     *   - "apcu" → ApcuBudgetTracker. APCu availability is checked at
+     *              runtime by the tracker, never here: the container is
+     *              often built by a CLI (cache:warmup) where APCu is off
+     *              while FPM has it.
      *   - "null" → NullBudgetTracker (no system-wide cap), also used for
      *              "apcu" with budget 0.
      *   - any other string → service id implementing BudgetTrackerInterface.
@@ -265,41 +267,15 @@ final class RpcExtension extends Extension
 
         // budget 0 means "no global cap"; an ApcuBudgetTracker(0) would reject every reservation.
         if ('null' === $store || ('apcu' === $store && 0 === $budget)) {
-            $container->setDefinition('json_rpc_server.parallel_batch.budget_tracker', new \Symfony\Component\DependencyInjection\Definition(NullBudgetTracker::class));
+            $container->setDefinition('json_rpc_server.parallel_batch.budget_tracker', new Definition(NullBudgetTracker::class));
             $controllerDef->setArgument('$budget', new Reference('json_rpc_server.parallel_batch.budget_tracker'));
 
             return;
         }
 
         if ('apcu' === $store) {
-            if (!ApcuBudgetTracker::isAvailable()) {
-                // APCu was requested but isn't loaded / enabled in this SAPI.
-                // We degrade to NullBudgetTracker so the boot doesn't fail —
-                // but loudly, because the operator opted in to parallel batch
-                // and now silently has NO system-wide concurrency cap. On
-                // FPM that's a recipe for pool exhaustion under load.
-                //
-                // The warning surfaces in cache:warmup / cache:clear output
-                // and ends up in error_log on prod. Operators who actually
-                // want the no-budget mode should set `budget_store: null`
-                // explicitly; that path is silent by design.
-                // Not suppressed with @ on purpose — operators must see this.
-                // If a test setup converts warnings to exceptions, that's the
-                // correct outcome: CI catches a misconfigured parallel batch.
-                // (ContainerBuilder::log() only accepts CompilerPassInterface,
-                // so we can't route this through the container's audit log.)
-                trigger_error(
-                    'json_rpc_server: parallel_batch.budget_store="apcu" requested but APCu is not available (function missing or apc.enabled=0). Falling back to NullBudgetTracker — the system-wide fan-out budget is OFF. Install APCu, or set budget_store: null to silence this warning.',
-                    \E_USER_WARNING,
-                );
-
-                $container->setDefinition('json_rpc_server.parallel_batch.budget_tracker', new \Symfony\Component\DependencyInjection\Definition(NullBudgetTracker::class));
-                $controllerDef->setArgument('$budget', new Reference('json_rpc_server.parallel_batch.budget_tracker'));
-
-                return;
-            }
-            $def = new \Symfony\Component\DependencyInjection\Definition(ApcuBudgetTracker::class);
-            $def->setArgument(0, $budget);
+            $def = new Definition(ApcuBudgetTracker::class);
+            $def->setArguments([$budget, new Reference('logger', ContainerBuilder::NULL_ON_INVALID_REFERENCE)]);
             $container->setDefinition('json_rpc_server.parallel_batch.budget_tracker', $def);
             $controllerDef->setArgument('$budget', new Reference('json_rpc_server.parallel_batch.budget_tracker'));
 

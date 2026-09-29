@@ -10,6 +10,8 @@ use Knetesin\JsonRpcServerBundle\Batch\ParallelBatchExecutor;
 use Knetesin\JsonRpcServerBundle\Dispatcher\Dispatcher;
 use Knetesin\JsonRpcServerBundle\Event\BatchDispatchedEvent;
 use Knetesin\JsonRpcServerBundle\Exception\InternalErrorException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidParamsException;
+use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
 use Knetesin\JsonRpcServerBundle\Exception\MethodNotFoundException;
 use Knetesin\JsonRpcServerBundle\Exception\RateLimitExceededException;
 use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
@@ -69,7 +71,7 @@ final class RpcController
         $body = $request->getContent();
 
         try {
-            [$isBatch, $items] = $this->parser->parse($body);
+            [$isBatch, $items] = $this->parser->parseItems($body);
         } catch (RpcException $e) {
             return $this->json(
                 RpcErrorEnvelope::jsonRpc(null, $e),
@@ -77,22 +79,32 @@ final class RpcController
             );
         }
 
-        // Per-method body-size pre-filter: items that exceed their own
-        // MaxRequestSize get their own error envelope without ever reaching
-        // the dispatcher. Notifications that exceed their limit drop silently
-        // per JSON-RPC spec. Items that pass go on to dispatch.
+        // Pre-dispatch filter: invalid batch items, per-method MaxRequestSize
+        // violations and streaming methods get their own error envelope without
+        // ever reaching the dispatcher or the parallel executor. Invalid items
+        // always answer (id: null); rejected notifications drop silently.
         $responses = [];
         $allowed = [];
+        $statusOverride = null;
         foreach ($items as $item) {
-            $tooLarge = $this->checkPerMethodLimit($item, $body);
-            if (false === $tooLarge) {
+            if ($item instanceof InvalidRequestException) {
+                $responses[] = RpcErrorEnvelope::jsonRpc(null, $item);
                 continue;
             }
-            if (null !== $tooLarge) {
-                $responses[] = $tooLarge;
+            $rejection = $this->preflight($item, $isBatch ? null : $body);
+            if (null === $rejection) {
+                $allowed[] = $item;
                 continue;
             }
-            $allowed[] = $item;
+            if ($item->isNotification) {
+                continue;
+            }
+            if (!$isBatch && $rejection instanceof RequestTooLargeException) {
+                // Nothing ran, so the transport-level 413 applies. Inside a batch
+                // the oversized item is just one -32600 entry among the others.
+                $statusOverride = $this->httpStatus->statusForException($rejection, $this->mapHttpStatus);
+            }
+            $responses[] = RpcErrorEnvelope::jsonRpc($item->id, $rejection);
         }
 
         $depth = ParallelBatchExecutor::depthOf($request);
@@ -122,7 +134,7 @@ final class RpcController
 
         $retryAfter = $this->maxRetryAfter($responses);
 
-        $httpStatus = $this->httpStatus->statusForResponses($responses, $this->mapHttpStatus);
+        $httpStatus = $statusOverride ?? $this->httpStatus->statusForResponses($responses, $this->mapHttpStatus);
 
         if (!$isBatch) {
             if ([] === $responses) {
@@ -156,7 +168,7 @@ final class RpcController
         }
 
         // Parallel fan-out is a batch-only optimization — singletons run in-process.
-        if (!$isBatch || !$this->parallelEnabled || null === $this->parallelExecutor) {
+        if (!$isBatch || !$this->parallelEnabled || null === $this->parallelExecutor || !$this->parallelExecutor->isUsable()) {
             return [FanoutDecision::SequentialDisabled, $this->dispatchSequential($items), []];
         }
         if ($size < $this->parallelMinBatchSize) {
@@ -320,11 +332,14 @@ final class RpcController
     }
 
     /**
-     * @return array<string, mixed>|false|null null = within limit (proceed),
-     *                                         array = error envelope to return,
-     *                                         false = notification dropped silently (204)
+     * Checks that a parsed request may be dispatched on this endpoint.
+     *
+     * @param string|null $body raw body of a single request; null for a batch item,
+     *                          which is measured as its sub-call body would be
+     *
+     * @return RpcException|null null = proceed, otherwise the reason to reject the item
      */
-    private function checkPerMethodLimit(RpcRequest $req, string $body): array|false|null
+    private function preflight(RpcRequest $req, ?string $body): ?RpcException
     {
         try {
             $meta = $this->dispatcher->metadata($req->method);
@@ -333,23 +348,26 @@ final class RpcController
             return null;
         }
 
+        if ($meta->isStreaming) {
+            return new InvalidRequestException(\sprintf('Method %s is a streaming method; call it via the streaming endpoint', $req->method));
+        }
+
         $limit = $meta->maxRequestSize ?? $this->defaultMaxRequestSize;
         if ($limit <= 0) {
             return null;
         }
 
-        $size = \strlen($body);
+        try {
+            $size = \strlen($body ?? ParallelBatchExecutor::subcallBody($req));
+        } catch (InvalidParamsException $e) {
+            // Unmeasurable means the per-method limit can't be enforced: reject.
+            return $e;
+        }
         if ($size <= $limit) {
             return null;
         }
 
-        if ($req->isNotification) {
-            // Spec: notifications never produce a response, even on errors.
-            // We still must not execute the handler with an oversized body.
-            return false;
-        }
-
-        return RpcErrorEnvelope::jsonRpc($req->id, new RequestTooLargeException($size, $limit));
+        return new RequestTooLargeException($size, $limit);
     }
 
     /**

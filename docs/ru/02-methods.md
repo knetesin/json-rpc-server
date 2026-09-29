@@ -110,13 +110,43 @@ pool обрабатывает хендлеры параллельно.
 json_rpc_server:
     parallel_batch:
         enabled: true               # выключено по умолчанию
+        self_url: 'http://127.0.0.1/rpc'  # обязателен при enabled: true
         max_concurrency: 3          # макс параллельных sub-call'ов в одном batch
         budget: 10                  # общесистемный потолок (APCu)
         max_depth: 1                # глубже 1 fan-out не идёт
         connect_timeout: 0.5
         timeout: 10
-        self_url: ~                 # null = derive из incoming request
 ```
+
+Параллельный batch **выключен по умолчанию**. Для включения обязателен
+`self_url` — абсолютный `http://` / `https://` URL RPC-endpoint'а этого
+сервера, на который уходят sub-call'ы; если он не задан или не абсолютный
+http(s) URL, сборка контейнера падает с понятным сообщением. URL никогда не
+выводится из incoming request: заголовок `Host` контролирует клиент, а
+sub-call'ы несут пересланный `Authorization`, так что подделанный `Host`
+отправил бы credentials клиента на сервер атакующего.
+
+Sub-call'ы пересылают заголовки из `parallel_batch.forward_headers`
+(по умолчанию: `Authorization`, `X-Request-Id`, `X-Forwarded-For`,
+`X-Forwarded-Proto`, `traceparent`, `tracestate`). `Cookie` по умолчанию
+**не** пересылается: с нативным (блокирующим) session handler'ом PHP
+родительский запрос держит session lock, а sub-call'ы ждут его — каждый
+висит до `timeout`. Приложения с аутентификацией по session cookie добавляют
+`Cookie` в список явно и только с неблокирующими или read-only сессиями.
+
+Каждый sub-call также несёт исходный IP клиента, подписанный родителем
+(`X-Rpc-Fanout-Client-Ip` + `X-Rpc-Fanout-Signature`, HMAC-SHA256 на ключе,
+выведенном из `kernel.secret`, по IP, глубине fan-out и точному телу
+sub-call'а). Его используют `RateLimitScope::Ip`, per-IP bucket гостей в
+`RateLimitScope::User` и cache scope `IpScope` — у каждого клиента свой
+bucket, а не общий loopback-адрес сервера. Заголовки, не прошедшие проверку,
+игнорируются. Пока параллельный batch включён, нужен непустой
+`kernel.secret` (`framework.secret`). В своём коде берите IP клиента через
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()`, а не
+`Request::getClientIp()` — внутри sub-call'а тот возвращает loopback-адрес.
+
+Notification внутри fan-out batch'а никогда не даёт response entry, что бы
+ни ответил sub-call.
 
 **Реальный операционный риск.** Наивная настройка может уложить worker pool.
 В бандле **пять слоёв защиты**, но **сначала измеряйте** перед включением в
@@ -139,13 +169,15 @@ sequential. Клиент не замечает ничего кроме чуть 
 `BatchDispatchedEvent` несёт label решения (виден в Web Profiler и в OTel
 трейсах) — можно мониторить когда fallback срабатывает.
 
-Требует `symfony/http-client` (hard) и `ext-apcu` (soft). Если
-`parallel_batch.enabled: true` и `budget_store: apcu` (default), но APCu не
-загружен, бандл откатывается на `NullBudgetTracker` и кидает
-`E_USER_WARNING` на этапе сборки контейнера — общесистемный budget в этом
-режиме **выключен**, и на FPM это рецепт исчерпания pool'а под нагрузкой.
-Чтобы заглушить warning, когда вы намеренно не хотите глобальный cap,
-выставьте `budget_store: null` явно.
+Требует `symfony/http-client` (hard) и `ext-apcu` (soft). При
+`budget_store: apcu` (default) tracker проверяет APCu в runtime, в том
+PHP-процессе, что обслуживает запрос, — не при сборке контейнера, так что
+`cache:warmup` из CLI без APCu ни на что не влияет. Если APCu нет, он
+выключен (`apc.enabled=0` или `apc.enable_cli=0` в CLI) или отказывает в
+записи, резервирование budget'а не проходит и batch идёт **sequential** —
+никогда без потолка, — а warning пишется в лог один раз на процесс. Чтобы
+осознанно fan-out'ить без общесистемного cap, выставьте `budget_store: null`
+явно.
 
 ## Notifications
 
@@ -232,6 +264,9 @@ public function __invoke(RpcRequest $req, Context $ctx): array
 #[Rpc\Method('user.update')]
 #[Rpc\Method('user.delete')]
 ```
+
+Имя метода не может содержать `%` — контейнер прочитал бы его как
+`%parameter%` placeholder; сборка падает с `LogicException`.
 
 Версионирование работает так же — см.
 [OpenRPC](./09-openrpc.md#стратегии-версионирования).

@@ -27,6 +27,11 @@ final class SecurityUserResolver
         return $user instanceof UserInterface ? $user : null;
     }
 
+    /**
+     * Identifier of the current user, or "anon" for guests. Not collision-safe:
+     * a real user may be named "anon" — branch on {@see getUser()} === null to
+     * tell guests apart.
+     */
     public function getUserIdentifier(): string
     {
         return $this->getUser()?->getUserIdentifier() ?? 'anon';

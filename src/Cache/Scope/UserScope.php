@@ -10,8 +10,9 @@ use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 
 /**
- * Built-in scope: one cache slot per Symfony user identifier. Anonymous
- * callers share the `anon` slot.
+ * Built-in scope: one cache slot per Symfony user identifier (key
+ * `user:<identifier>`). Unauthenticated callers share the `guest` slot, which
+ * no user identifier can collide with.
  *
  * Reference it with `#[Rpc\Cache(scope: UserScope::class)]`.
  */
@@ -23,6 +24,8 @@ final readonly class UserScope implements CacheScope
 
     public function key(MethodMetadata $method, RpcRequest $request): string
     {
-        return 'user:'.$this->users->getUserIdentifier();
+        $user = $this->users->getUser();
+
+        return null === $user ? 'guest' : 'user:'.$user->getUserIdentifier();
     }
 }

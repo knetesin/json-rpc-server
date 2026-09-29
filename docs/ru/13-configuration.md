@@ -46,13 +46,25 @@ json_rpc_server:
     enabled: true
 
   mcp:
-    enabled: true
+    enabled: false
     default_format: json
-    apply_rate_limit: false
+    apply_rate_limit: true
     expose_all: false
     exclude_prefixes: []
     exclude_methods: []
     whitelist_methods: []
+
+  parallel_batch:
+    enabled: false
+    self_url: ~               # обязателен при enabled: true, напр. 'http://127.0.0.1/rpc'
+    min_batch_size: 2
+    max_concurrency: 3
+    budget: 10
+    budget_store: apcu        # apcu | null | <service id>
+    max_depth: 1
+    connect_timeout: 0.5
+    timeout: 10.0
+    forward_headers: [Authorization, X-Request-Id, X-Forwarded-For, X-Forwarded-Proto, traceparent, tracestate]
 ```
 
 ## `max_request_size`
@@ -66,6 +78,14 @@ json_rpc_server:
 ```
 
 Oversized payload'ы возвращают HTTP 413 с JSON-RPC error envelope.
+
+Внутри batch'а каждый элемент сверяется с лимитом своего метода по
+собственному размеру (его заново закодированному JSON envelope); элемент сверх
+лимита получает свою ошибку -32600, остальной batch выполняется. Элемент,
+который нельзя закодировать заново (число за пределами float вроде `1e400`
+декодируется в INF), получает свою ошибку -32602: его размер не проверить. HTTP 413
+возвращается, только если ничего не выполнялось: body больше parser cap или
+одиночный (не batch) запрос превышает лимит своего метода.
 
 Когда глобальный лимит > 0, parser cap бандла поднимается на этапе сборки
 контейнера до максимального per-method значения — чтобы метод с более высоким
@@ -88,7 +108,7 @@ json_rpc_server:
 ## `http_status.enabled`
 
 По умолчанию `false`. При `true` `/rpc` мапит `error.code` в HTTP-статусы
-(400/404/429/500) как `/rpc/stream`. Oversized body всё равно **413**, даже
+(400/403/404/429/500) как `/rpc/stream`. Oversized не-batch body всё равно **413**, даже
 когда флаг выключен. В batch — максимальный статус среди элементов.
 
 ```yaml
@@ -114,7 +134,9 @@ json_rpc_server:
 
 `true` (dev-friendly дефолт) — `AccessDenied` сообщения называют недостающие
 роли. `false` — сообщение схлопывается в `Access denied`. Для production
-deployment'ов где role-ID несут бизнес-структуру.
+deployment'ов где role-ID несут бизнес-структуру. `false` также убирает роли из
+discovery: у записей `/mcp/tools` нет `roles`, а в OpenRPC-документе нет
+`x-rpc-roles` / `x-rpc-roles-match`.
 
 ```yaml
 # config/packages/prod/rpc.yaml
@@ -336,13 +358,14 @@ json_rpc_server:
 
 ## `mcp.apply_rate_limit`
 
-Применяется ли `#[Rpc\RateLimit]` на `/mcp/call`. Default `false` — MCP-трафик
-обычно от доверенного внутреннего агента. Включите для публичного MCP.
+Применяется ли `#[Rpc\RateLimit]` на `/mcp/call`. Default `true` — MCP-endpoint
+лимитируется так же, как `/rpc`. Выключайте только если `/mcp/call` доступен
+исключительно доверенному внутреннему агенту.
 
 ```yaml
 json_rpc_server:
   mcp:
-    apply_rate_limit: true
+    apply_rate_limit: false
 ```
 
 ## `mcp.expose_all`
@@ -369,6 +392,54 @@ json_rpc_server:
     exclude_prefixes: ['internal.', 'debug.']
 ```
 
+## `parallel_batch.enabled`
+
+Default `false` — параллельный batch выключен, пока вы его не включите. Перед
+включением прочитайте
+[Методы → параллельный batch](./02-methods.md#opt-in-параллельный-batch-через-loopback-fan-out).
+Требует `symfony/http-client`, `self_url` и непустой `kernel.secret`
+(`framework.secret`) — на нём ключится HMAC, которым подписывается IP клиента
+для sub-call'ов.
+
+## `parallel_batch.self_url`
+
+Default `null`; **обязателен** при `enabled: true`. Абсолютный `http://` /
+`https://` URL, на который уходят sub-call'ы, вместе с RPC-путём — напр.
+`http://127.0.0.1/rpc` или отдельный worker pool вроде
+`http://127.0.0.1/internal/rpc-fanout`. Если URL не задан или не абсолютный
+http(s), сборка контейнера падает. Значение из env-переменной проверяется
+только в runtime: если это не абсолютный http(s) URL, в лог пишется error, а
+batch'и идут sequential — одиночные вызовы не затрагиваются. Из incoming
+request URL не выводится никогда: `Host` контролирует клиент, а sub-call'ы
+несут пересланный `Authorization`.
+
+```yaml
+json_rpc_server:
+  parallel_batch:
+    enabled: true
+    self_url: '%env(RPC_SELF_URL)%'
+```
+
+## `parallel_batch.budget` / `budget_store`
+
+Defaults `10` и `apcu`. `budget` ограничивает число sub-call'ов в полёте по
+всем параллельным batch'ам; `0` снимает ограничение. `budget_store: apcu`
+проверяет APCu в runtime в обслуживающем процессе: если APCu там недоступен,
+batch'и идут sequential, а warning пишется в лог один раз на процесс. `null` —
+без общесистемного cap; любое другое значение — id сервиса, реализующего
+`BudgetTrackerInterface`.
+
+## `parallel_batch.forward_headers`
+
+Входящие заголовки, пересылаемые в каждый sub-call. Default: `Authorization`,
+`X-Request-Id`, `X-Forwarded-For`, `X-Forwarded-Proto`, `traceparent`,
+`tracestate`. `Cookie` в default не входит: с нативным (блокирующим) session
+handler'ом PHP родитель держит session lock, и каждый sub-call ждёт его до
+`timeout`. Приложения на session cookie добавляют `Cookie` явно и только с
+неблокирующими или read-only сессиями. Внутренние заголовки
+`X-Rpc-Fanout-Depth`, `X-Rpc-Fanout-Client-Ip` и `X-Rpc-Fanout-Signature`
+всегда выставляет бандл, из запроса клиента они не копируются.
+
 ## Per-environment конфиг
 
 Стандартный Symfony config inheritance. Например, dev с именами ролей,
@@ -380,15 +451,11 @@ json_rpc_server:
   max_request_size: 1048576
   security:
     expose_role_names: true
-  mcp:
-    apply_rate_limit: false
 
 # config/packages/prod/rpc.yaml — prod overrides
 json_rpc_server:
   security:
     expose_role_names: false
-  mcp:
-    apply_rate_limit: true
 ```
 
 ## Параметры из PHP

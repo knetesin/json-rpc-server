@@ -72,6 +72,12 @@ Response-заголовки всегда содержат:
 Бандл также вызывает `ob_flush()` + `flush()` после каждого ряда — поток
 реально стримит под PHP-FPM с дефолтным `output_buffering = 4096`.
 
+Streaming-метод вызывается **только** через `/rpc/stream`. На `/rpc` — одиночным
+вызовом, batch item'ом или sub-call'ом parallel batch — он отклоняется до
+dispatch с `-32600 Invalid Request` (`Method chat.stream is a streaming method;
+call it via the streaming endpoint`); handler не запускается. Notification к
+нему не получает ответа и тоже не выполняется.
+
 ## Обработка ошибок
 
 Endpoint различает pre-stream и mid-stream ошибки:
@@ -79,13 +85,21 @@ Endpoint различает pre-stream и mid-stream ошибки:
 ### Pre-stream ошибки
 
 Обнаружены до старта итератора (parse, method-not-found, batch > 1,
-method-not-streaming). Результат: обычный JSON-RPC envelope, HTTP 4xx/5xx.
+method-not-streaming, access denied, rate limit, invalid params, …). Результат:
+обычный JSON-RPC envelope, HTTP 4xx/5xx по `error.code`. Этот endpoint маппит
+статусы всегда, независимо от `http_status.enabled`:
 
 | Тип | Статус |
 |---|---|
 | Parse / Invalid Request | 400 |
-| Method not found | 404 |
+| Invalid params | 400 |
+| Access denied (-32001) | 403 |
+| Method not found / Not found (-32002) | 404 |
+| Тело больше лимита размера | 413 |
+| Rate limit (-32003) | 429 + `Retry-After` |
 | Internal error | 500 |
+| Прочие коды из -32099 … -32000 | 400 |
+| Любой другой код | 500 |
 
 ```json
 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Streaming endpoint accepts only a single request"},"id":1}
@@ -128,7 +142,7 @@ Stream — не notification: он коррелирует запрос и отв
 |---|---|
 | `#[Rpc\Stream]` + `#[Rpc\Cache]` | **Compile-time error.** Stream per-call; нельзя переиграть из статичного blob'а. |
 | `#[Rpc\Stream]` + `#[Rpc\RateLimit]` | Разрешено. Rate-limit срабатывает до старта итератора. |
-| `#[Rpc\Stream]` + `#[Rpc\Mcp]` | Разрешено в метадате, но MCP-транспорт не стримит — LLM-клиент получает финальный aggregated content. |
+| `#[Rpc\Stream]` + `#[Rpc\Mcp]` | Разрешено в метадате, но streaming-методы никогда не публикуются через MCP (ни через `#[Rpc\Mcp]`, ни через `expose_all` или `whitelist_methods`): `/mcp/tools` их не показывает, `/mcp/call` отвечает 404, как для неизвестного tool'а. |
 | `#[Rpc\Stream]` + `#[Rpc\Method(roles: [...])]` | Разрешено. Auth срабатывает до старта итератора. |
 
 ## Заметки по производительности

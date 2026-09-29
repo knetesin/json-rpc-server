@@ -115,6 +115,10 @@ own SDK generator, the docs renderer) can read them:
 | `x-rpc-streaming` | boolean | `#[Rpc\Stream]` |
 | `x-rpc-stream-format` | string | `#[Rpc\Stream(format: ...)]` |
 
+With `json_rpc_server.security.expose_role_names: false` the document carries
+no `x-rpc-roles` / `x-rpc-roles-match` — role identifiers stay internal here
+too, as in `AccessDenied` messages and MCP `tools` entries.
+
 ## Integration with SDK generators
 
 ### TypeScript

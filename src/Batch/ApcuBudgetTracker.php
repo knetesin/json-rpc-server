@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Knetesin\JsonRpcServerBundle\Batch;
 
+use Psr\Log\LoggerInterface;
+
 /**
  * APCu-backed system-wide budget tracker. Lock-free CAS / inc / dec primitives
  * give us a shared counter visible to every PHP process on the host running
@@ -14,18 +16,22 @@ namespace Knetesin\JsonRpcServerBundle\Batch;
  * cluster budget, swap in a Redis-backed tracker (user implementation
  * implementing {@see BudgetTrackerInterface}).
  *
- * Failure mode: if APCu isn't compiled / enabled in the running PHP, all
- * methods degrade to a NullBudgetTracker equivalent rather than throwing.
- * RpcExtension swaps the service definition at compile time when APCu is
- * absent — this class assumes it's there.
+ * Failure mode: availability is checked at runtime, in the SAPI that serves
+ * the request (the container may be built by a CLI without APCu). When APCu
+ * is missing, disabled or refuses the write, reserve() returns false — the
+ * batch runs sequentially, never uncapped — and a warning is logged once per
+ * process. release() and inflight() are no-ops then.
  */
 final class ApcuBudgetTracker implements BudgetTrackerInterface
 {
     /** APCu key for the inflight counter. Single key, no per-method buckets. */
     private const string KEY = 'json_rpc_server.parallel_batch.inflight';
 
+    private static bool $unavailableWarned = false;
+
     public function __construct(
         private readonly int $budget,
+        private readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -35,11 +41,19 @@ final class ApcuBudgetTracker implements BudgetTrackerInterface
             return true;
         }
 
+        if (!self::functionsUsable()) {
+            $this->warnUnavailable('APCu is not loaded or not enabled in this SAPI');
+
+            return false;
+        }
+
         // apcu_inc atomically bumps and returns the post-increment value.
         // Race-free across processes; the worst case is a momentary overshoot
         // that we immediately roll back below.
         $after = apcu_inc(self::KEY, $count, $success);
         if (false === $success || !\is_int($after)) {
+            $this->warnUnavailable('apcu_inc() failed');
+
             return false;
         }
 
@@ -56,7 +70,7 @@ final class ApcuBudgetTracker implements BudgetTrackerInterface
 
     public function release(int $count): void
     {
-        if ($count <= 0) {
+        if ($count <= 0 || !self::functionsUsable()) {
             return;
         }
         // apcu_dec is also lock-free. We deliberately do not assert that the
@@ -68,6 +82,10 @@ final class ApcuBudgetTracker implements BudgetTrackerInterface
 
     public function inflight(): int
     {
+        if (!self::functionsUsable()) {
+            return 0;
+        }
+
         $value = apcu_fetch(self::KEY, $success);
         if (false === $success || !\is_int($value)) {
             return 0;
@@ -76,9 +94,13 @@ final class ApcuBudgetTracker implements BudgetTrackerInterface
         return max(0, $value);
     }
 
+    /**
+     * Full probe including a test write. Not used on the request path, which
+     * relies on {@see reserve()} failing instead.
+     */
     public static function isAvailable(): bool
     {
-        if (!\function_exists('apcu_inc') || !\function_exists('apcu_dec') || !\function_exists('apcu_fetch')) {
+        if (!self::functionsUsable()) {
             return false;
         }
 
@@ -93,6 +115,28 @@ final class ApcuBudgetTracker implements BudgetTrackerInterface
         }
 
         return self::probeWritable();
+    }
+
+    /** apcu_enabled() covers apc.enabled and, on CLI, apc.enable_cli. */
+    private static function functionsUsable(): bool
+    {
+        return \function_exists('apcu_enabled')
+            && \function_exists('apcu_inc')
+            && \function_exists('apcu_dec')
+            && \function_exists('apcu_fetch')
+            && apcu_enabled();
+    }
+
+    private function warnUnavailable(string $reason): void
+    {
+        if (self::$unavailableWarned) {
+            return;
+        }
+        self::$unavailableWarned = true;
+
+        $this->logger?->warning('json_rpc_server: parallel_batch.budget_store="apcu" but APCu is unusable ({reason}); batches run sequentially. Enable APCu for this SAPI, or set budget_store: null to fan out without a system-wide cap.', [
+            'reason' => $reason,
+        ]);
     }
 
     private static function iniFlag(string $key): bool

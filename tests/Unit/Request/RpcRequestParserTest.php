@@ -7,6 +7,7 @@ namespace Knetesin\JsonRpcServerBundle\Tests\Unit\Request;
 use Knetesin\JsonRpcServerBundle\Exception\InvalidRequestException;
 use Knetesin\JsonRpcServerBundle\Exception\ParseException;
 use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
+use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequestParser;
 use PHPUnit\Framework\TestCase;
 
@@ -123,5 +124,53 @@ final class RpcRequestParserTest extends TestCase
             return;
         }
         $this->fail('expected ParseException');
+    }
+
+    public function testParseItemsKeepsInvalidBatchItemsInPlace(): void
+    {
+        [$isBatch, $items] = $this->parser->parseItems(
+            '[{"jsonrpc":"2.0","method":"sum","id":1},{"foo":"boo"},{"jsonrpc":"2.0","method":"notify"},1]',
+        );
+
+        $this->assertTrue($isBatch);
+        $this->assertCount(4, $items);
+        $this->assertInstanceOf(RpcRequest::class, $items[0]);
+        $this->assertSame('sum', $items[0]->method);
+        $this->assertInstanceOf(InvalidRequestException::class, $items[1]);
+        $this->assertInstanceOf(RpcRequest::class, $items[2]);
+        $this->assertTrue($items[2]->isNotification);
+        $this->assertInstanceOf(InvalidRequestException::class, $items[3]);
+    }
+
+    public function testParseItemsReturnsOneErrorPerScalarItem(): void
+    {
+        [$isBatch, $items] = $this->parser->parseItems('[1,2,3]');
+
+        $this->assertTrue($isBatch);
+        $this->assertCount(3, $items);
+        $this->assertContainsOnlyInstancesOf(InvalidRequestException::class, $items);
+    }
+
+    public function testParseItemsStillThrowsForInvalidSingleRequest(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        $this->parser->parseItems('{"jsonrpc":"1.0","method":"foo","id":1}');
+    }
+
+    public function testParseItemsStillThrowsForEmptyBatch(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        $this->parser->parseItems('[]');
+    }
+
+    public function testStrictParseRejectsBatchWithInvalidItem(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        $this->parser->parse('[{"jsonrpc":"2.0","method":"sum","id":1},{"foo":"boo"}]');
+    }
+
+    public function testIsBatchPayloadDoesNotRequireValidItems(): void
+    {
+        $this->assertTrue($this->parser->isBatchPayload('[1]'));
     }
 }

@@ -12,6 +12,8 @@ without duplicate code paths.
 | `/mcp/tools` | GET | `{"tools": [{name, description, roles, inputSchema, outputSchema?, annotations?}]}` |
 | `/mcp/call` | POST | `{"content": [...], "structuredContent": ...}` |
 
+`roles` is omitted when `json_rpc_server.security.expose_role_names` is `false`.
+
 `/mcp/call` body shape:
 
 ```json
@@ -74,6 +76,11 @@ Filter priority (first match wins):
 
 Operator config (`exclude_*`, `whitelist_*`) wins over the developer's
 attribute — the deployment owner gets the final say.
+
+Streaming methods (`#[Rpc\Stream]`) are never exposed, whatever the rules
+above say: an MCP call returns one result and cannot carry a stream. They are
+missing from `/mcp/tools`, and `/mcp/call` answers them with 404 like an
+unknown tool.
 
 ## Disabling MCP entirely
 
@@ -256,6 +263,12 @@ final class GetById implements McpResultTransformer
 Runs after `__invoke` and after normalization. The JSON-RPC `/rpc` response is
 unaffected — only `/mcp/call` sees the transformed output.
 
+`transformMcpResult()` may run on a different handler instance than the one
+that produced the result: handlers are non-shared by default
+(`handlers.shared: false`), and on a cache hit `__invoke` does not run at all.
+Keep it a pure function of `$result` — don't rely on state set during the call.
+Only handlers that implement the interface are instantiated for this hook.
+
 For bulk reshaping across many methods, prefer a custom
 `McpResultFormatter` (decorating `DefaultMcpResultFormatter`).
 
@@ -269,13 +282,14 @@ Falls back to `#[Rpc\Method(description: ...)]` when omitted.
 
 ## Rate limiting for MCP
 
-`#[Rpc\RateLimit]` does **not** apply to `/mcp/call` by default — MCP traffic
-typically comes from a trusted internal agent. Flip on for public MCP:
+`#[Rpc\RateLimit]` applies to `/mcp/call` **by default**, exactly as on
+`/rpc` — the MCP endpoint must not become a way around your limits. Switch it
+off only when `/mcp/call` is reachable exclusively by a trusted internal agent:
 
 ```yaml
 json_rpc_server:
   mcp:
-    apply_rate_limit: true
+    apply_rate_limit: false
 ```
 
 ## HTTP statuses

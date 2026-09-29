@@ -103,7 +103,14 @@ final class McpToolFilterTest extends TestCase
         return new McpToolFilter($exposeAll, $excludePrefixes, $excludeMethods, $whitelistMethods);
     }
 
-    private function meta(string $name, bool $hasAttr, bool $enabled = true): MethodMetadata
+    public function testStreamingMethodsAreNeverExposed(): void
+    {
+        $this->assertFalse($this->filter(exposeAll: true)->isExposed($this->meta('feed.rows', hasAttr: false, streaming: true)));
+        $this->assertFalse($this->filter()->isExposed($this->meta('feed.rows', hasAttr: true, streaming: true)));
+        $this->assertFalse($this->filter(whitelistMethods: ['feed.rows'])->isExposed($this->meta('feed.rows', hasAttr: true, streaming: true)));
+    }
+
+    private function meta(string $name, bool $hasAttr, bool $enabled = true, bool $streaming = false): MethodMetadata
     {
         return new MethodMetadata(
             name: $name,
@@ -112,7 +119,7 @@ final class McpToolFilterTest extends TestCase
             description: null,
             parameters: [],
             returnType: null,
-            isStreaming: false,
+            isStreaming: $streaming,
             streamFormat: null,
             hasMcpAttribute: $hasAttr,
             mcpEnabled: $enabled,

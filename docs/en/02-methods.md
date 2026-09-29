@@ -110,13 +110,45 @@ worker pool then runs handlers in parallel.
 json_rpc_server:
     parallel_batch:
         enabled: true               # off by default
+        self_url: 'http://127.0.0.1/rpc'  # required when enabled
         max_concurrency: 3          # max parallel sub-calls per batch
         budget: 10                  # system-wide cap (APCu-backed)
         max_depth: 1                # no fan-out from a sub-call
         connect_timeout: 0.5
         timeout: 10
-        self_url: ~                 # null = derive from the incoming request
 ```
+
+Parallel batch is **off by default**. Turning it on requires `self_url` — the
+absolute `http://` / `https://` URL of this server's RPC endpoint that
+sub-calls are POSTed to; the container build fails with a clear message when
+it is missing or not an absolute http(s) URL. The URL is never derived from
+the incoming request: the `Host` header is client-controlled, and sub-calls
+carry the forwarded `Authorization` header, so a forged `Host` would send the
+caller's credentials to a server of the attacker's choosing.
+
+Sub-calls re-send the headers listed in `parallel_batch.forward_headers`
+(default: `Authorization`, `X-Request-Id`, `X-Forwarded-For`,
+`X-Forwarded-Proto`, `traceparent`, `tracestate`). `Cookie` is **not**
+forwarded by default: with PHP's native (locking) session handler the parent
+request holds the session lock while its sub-calls wait for it, so every
+sub-call hangs until `timeout`. Apps that authenticate by session cookie add
+`Cookie` to the list explicitly, and only with non-locking or read-only
+sessions.
+
+Each sub-call also carries the original client IP, signed by the parent
+(`X-Rpc-Fanout-Client-Ip` + `X-Rpc-Fanout-Signature`, an HMAC-SHA256 keyed
+from `kernel.secret` over the IP, the fan-out depth and the exact sub-call
+body). `RateLimitScope::Ip`, the per-IP guest bucket of `RateLimitScope::User`
+and the `IpScope` cache scope use it, so every client keeps its own bucket
+instead of all sharing the server's loopback address. Headers that don't
+verify are ignored. A non-empty `kernel.secret` (`framework.secret`) is
+required while parallel batch is on. In your own code, read the client IP via
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()` rather than
+`Request::getClientIp()`, which returns the loopback address inside a
+sub-call.
+
+A notification inside a fanned-out batch never produces a response entry,
+whatever the sub-call replies.
 
 **Real operational risk.** A naive setup can starve your worker pool. The
 bundle ships **five safety layers** to mitigate, but **measure first** before
@@ -140,13 +172,14 @@ higher latency on that one batch. The `BatchDispatchedEvent` carries the
 decision label (visible in the Web Profiler and OpenTelemetry traces) so you
 can monitor exactly when fallback is firing.
 
-Requires `symfony/http-client` (hard) and `ext-apcu` (soft). When
-`parallel_batch.enabled: true` and `budget_store: apcu` (the default) but
-APCu isn't loaded, the bundle falls back to `NullBudgetTracker` and emits
-an `E_USER_WARNING` at container build time — the system-wide budget is
-**off** in that mode, so on FPM you risk pool exhaustion under load. To
-silence the warning when you intentionally don't want a global cap, set
-`budget_store: null` explicitly.
+Requires `symfony/http-client` (hard) and `ext-apcu` (soft). With
+`budget_store: apcu` (the default) the tracker checks APCu at runtime, in the
+PHP process that serves the request — not while the container is built, so a
+`cache:warmup` run by a CLI without APCu does not matter. When APCu is missing,
+disabled (`apc.enabled=0`, or `apc.enable_cli=0` on CLI) or refuses the
+write, the budget reservation fails and the batch runs **sequentially** —
+never uncapped — and a warning is logged once per process. To fan out without
+a system-wide cap on purpose, set `budget_store: null` explicitly.
 
 ## Notifications
 
@@ -233,6 +266,9 @@ JSON-RPC method names form a flat namespace. Use prefixes for grouping:
 #[Rpc\Method('user.update')]
 #[Rpc\Method('user.delete')]
 ```
+
+Method names must not contain `%` — the container would read it as a
+`%parameter%` placeholder; the build fails with a `LogicException`.
 
 Versioning works the same way — see the
 [OpenRPC chapter](./09-openrpc.md#versioning-strategies).

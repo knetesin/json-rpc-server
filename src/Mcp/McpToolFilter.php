@@ -9,9 +9,11 @@ use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 /**
  * Decides whether a given RPC method should be visible via MCP.
  *
- * Priority (first matching rule wins). Operator config (exclude_methods,
- * whitelist_methods) takes precedence over developer-set attributes — the
- * deployment owner gets the final say.
+ * Streaming methods (`#[Rpc\Stream]`) are never exposed: an MCP call returns
+ * a single result and cannot carry a stream. For all other methods the
+ * priority applies (first matching rule wins). Operator config
+ * (exclude_methods, whitelist_methods) takes precedence over developer-set
+ * attributes — the deployment owner gets the final say.
  *
  *   1. `exclude_methods` lists the name       → hidden  (operator: explicit deny)
  *   2. `whitelist_methods` lists the name     → exposed (operator: explicit allow)
@@ -40,6 +42,9 @@ final readonly class McpToolFilter
 
     public function isExposed(MethodMetadata $meta): bool
     {
+        if ($meta->isStreaming) {
+            return false;
+        }
         if (\in_array($meta->name, $this->excludeMethods, true)) {
             return false;
         }

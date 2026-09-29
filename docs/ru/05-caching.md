@@ -25,7 +25,10 @@ final class GetWeather
 3. Miss → выполняет handler, нормализует результат, сохраняет, диспатчит события.
 
 Notifications **никогда** не кэшируются — у них обычно side effects, которые
-надо применять каждый раз. Ошибки **тоже** не кэшируются.
+надо применять каждый раз. Ошибки **тоже** не кэшируются, как и результаты,
+которые нельзя закодировать в JSON с настроенными `json.encode_flags`
+(невалидный UTF-8, `NAN`/`INF`): вызов отвечает -32603, а следующий вызов снова
+выполняет handler, а не повторяет ошибку из кэша до истечения TTL.
 
 ## Method guards и cache lookup
 
@@ -50,9 +53,13 @@ final class GetMyProfile { /* … */ }
 
 ### Встроенные scope-ы
 
-- **`UserScope`** — партиция по Symfony user identifier. Откатывается на
-  `anon` для unauthenticated вызовов.
-- **`IpScope`** — партиция по client IP из `RequestStack`.
+- **`UserScope`** — партиция по Symfony user identifier. Scope key:
+  `user:{userIdentifier}` для authenticated вызовов, иначе `guest`.
+- **`IpScope`** — партиция по client IP из `RequestStack`. Scope key:
+  `ip:{ip}`.
+
+Scope key кастомного scope — то, что возвращает его `key()`. Scope key нужен,
+когда вы purge'ите чужую запись — см. [API инвалидации](#api-инвалидации).
 
 ### Кастомный scope
 
@@ -163,12 +170,34 @@ final class UpdateUserHandler
 
 | Метод | Что делает | Нужен tag-aware? |
 |---|---|---|
-| `purge(method, params)` | Дропнуть один slot. | Нет |
+| `purge(method, params, scopeKey?)` | Дропнуть один slot. | Нет |
 | `purgeMethod(method)` | Дропнуть всё, кэшированное под этим методом. | Да |
 | `purgeTags(tags, pool?)` | Дропнуть всё со стампом этих тегов. | Да |
 | `purgeAll(pool?)` | Очистить весь пул. | Нет |
 
 Все purge'ы пишутся в info-лог — годятся как audit-сигнал.
+
+### Purge записи со scope
+
+У метода со `scope:` slot зависит ещё и от того, чья это запись. Без
+`scopeKey` `purge()` вычисляет scope **текущего вызывающего** — это верно,
+когда пользователь инвалидирует свои данные, и неверно, когда админ (или
+фоновая задача, у которой нет ни user, ни IP) правит чужие: purge'ится slot
+самого вызывающего, а у владельца остаётся устаревшая запись. Передайте scope
+key владельца:
+
+```php
+// Админ обновил профиль alice — дропаем кэш alice, а не админа.
+$this->cache->purge('user.profile', ['userId' => 42], 'user:alice');
+
+// IpScope / кастомные scope'ы: значение, которое их key() даёт для владельца.
+$this->cache->purge('geo.lookup', null, 'ip:203.0.113.7');
+```
+
+`scopeKey` для метода **без** cache scope бросает
+`\InvalidArgumentException` — у такого метода один общий slot, и scope key там
+— ошибка; вызывайте `purge(method, params)`. Чтобы дропнуть записи всех
+владельцев сразу, используйте `purgeMethod()` или тег.
 
 ## CLI
 
@@ -194,13 +223,35 @@ bin/console rpc:cache:clear --all --pool=long_lived
 
 ## Как строится ключ
 
+Методы без scope получают читаемый ключ:
+
 ```
-rpc.cache | {method} | {scope.key()} | sha1({stable_sorted_params})
+{key_prefix}.{method}.sha1({stable_sorted_params})
+например rpc.cache.weather.get.52adfcb52fb68d9bf6baa00f81684b77e3263ae9   ({"city": "Berlin"})
 ```
 
 Stable-sorted значит: ассоциативные params сортируются по ключу, list-params
 сохраняют порядок. Один и тот же JSON-объект независимо от порядка ключей →
 один и тот же хэш.
 
-Ключи длиннее 200 символов или содержащие зарезервированные PSR-6 символы
-(`{}()/\@:`) сворачиваются в `rpc.{sha1}` — backend-безопасно и ограничено.
+Если такой ключ длиннее `cache.max_readable_key_length` (по дефолту 200) или
+содержит символы вне `[A-Za-z0-9_.-]` (например, кастомный `key_prefix` с
+зарезервированными PSR-6 символами `{}()/\@:`), он сворачивается в хэшированную
+форму.
+
+Записи методов **со scope** всегда используют хэшированную форму — scope key
+это произвольная строка, и по читаемой склейке нельзя отличить метод `a.b` от
+метода `a` со scope key `b`:
+
+```
+{hash_prefix}.sha1(serialize([{key_prefix}, {method}, {scope key}, sha1({stable_sorted_params})]))
+например rpc.108c12fa023dc0cdaa4b02d5b78350e9873130fd   (user.profile, user:alice, {"userId": 42})
+```
+
+`key_prefix` по дефолту `rpc.cache`, `hash_prefix` — `rpc`. `purge()`,
+`purgeMethod()` и теги адресуют те же ключи, что читают и пишут вызовы.
+
+После обновления до 1.7 меняются все ключи кэша — и читаемые, и
+хэшированные, а `UserScope` теперь ключует гостей как `guest` вместо
+`user:anon`, — поэтому кэш один раз стартует холодным; старые записи истекают
+по TTL.

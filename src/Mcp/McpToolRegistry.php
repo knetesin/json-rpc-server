@@ -23,11 +23,13 @@ final class McpToolRegistry
          * (e.g. tests, dynamic registration).
          */
         private readonly ?JsonSchemaBuilder $schemaBuilder = null,
+        /** When false, tool entries carry no `roles` (mirrors `security.expose_role_names`). */
+        private readonly bool $exposeRoleNames = true,
     ) {
     }
 
     /**
-     * @return list<array{name: string, description: ?string, roles: list<string>, inputSchema: array<string, mixed>, outputSchema?: array<string, mixed>, annotations?: array<string, bool|string>}>
+     * @return list<array{name: string, description: ?string, roles?: list<string>, inputSchema: array<string, mixed>, outputSchema?: array<string, mixed>, annotations?: array<string, bool|string>}>
      */
     public function getTools(): array
     {
@@ -40,11 +42,13 @@ final class McpToolRegistry
             $entry = [
                 'name' => $meta->name,
                 'description' => $meta->getMcpDescription(),
-                'roles' => $meta->roles,
-                'inputSchema' => [] !== $meta->inputSchema
-                    ? $meta->inputSchema
-                    : ($this->schemaBuilder?->fromMethod($meta) ?? ['type' => 'object', 'properties' => new \stdClass()]),
             ];
+            if ($this->exposeRoleNames) {
+                $entry['roles'] = $meta->roles;
+            }
+            $entry['inputSchema'] = [] !== $meta->inputSchema
+                ? $meta->inputSchema
+                : ($this->schemaBuilder?->fromMethod($meta) ?? ['type' => 'object', 'properties' => new \stdClass()]);
             // outputSchema is omitted when the method's return type is too loose
             // to schema-ize (array/mixed/void/missing). MCP clients then know
             // "no advertised shape" rather than getting a meaningless stub.

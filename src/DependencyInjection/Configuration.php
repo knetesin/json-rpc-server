@@ -65,7 +65,7 @@ final class Configuration implements ConfigurationInterface
                 ->end()
                 ->booleanNode('expose_role_names')
                     ->defaultTrue()
-                    ->info('When true (dev-friendly default), AccessDenied messages name the missing role(s). Flip to false in prod if your role IDs leak business structure ("ROLE_BILLING_INTERNAL") — the client then gets a generic "Access denied".')
+                    ->info('When true (dev-friendly default), AccessDenied messages name the missing role(s). Flip to false in prod if your role IDs leak business structure ("ROLE_BILLING_INTERNAL") — the client then gets a generic "Access denied". False also drops roles from /mcp/tools and the OpenRPC document.')
                 ->end()
                 ->arrayNode('default_roles')
                     ->info('Roles applied to every method that does NOT set its own roles in #[Rpc\\Method(roles: ...)]. Empty (default) keeps the historical "no roles = public" behavior. Set to e.g. ["ROLE_USER"] for secure-by-default: only methods listed in public_methods / matching public_prefixes stay anonymous.')
@@ -486,11 +486,17 @@ final class Configuration implements ConfigurationInterface
             ->children()
                 ->booleanNode('enabled')
                     ->defaultFalse()
-                    ->info('Master switch. Off by default. Turn on only after sizing the worker pool — see budget below.')
+                    ->info('Master switch. Off by default. Turn on only after sizing the worker pool — see budget below. Requires self_url.')
                 ->end()
                 ->scalarNode('self_url')
                     ->defaultNull()
-                    ->info('URL the fan-out POSTs sub-calls to. Null derives it from the incoming request scheme+host. Set explicitly to point at a separate worker pool (e.g. http://127.0.0.1/internal/rpc-fanout served by a dedicated FPM pool) — strongly recommended for production.')
+                    ->info('Absolute http(s) URL the fan-out POSTs sub-calls to, e.g. http://127.0.0.1/rpc or a dedicated worker pool such as http://127.0.0.1/internal/rpc-fanout. Required when enabled: it is never derived from the incoming request, because the Host header is client-controlled and sub-calls carry the forwarded Authorization header.')
+                    ->validate()
+                        // Empty strings are rejected by the "enabled" rule below; letting them
+                        // pass here keeps env-var placeholders (validated with "" as a stand-in) working.
+                        ->ifTrue(static fn (mixed $v): bool => null !== $v && '' !== $v && !self::isAbsoluteHttpUrl($v))
+                        ->thenInvalid('parallel_batch.self_url must be an absolute http:// or https:// URL, got %s.')
+                    ->end()
                 ->end()
                 ->integerNode('min_batch_size')
                     ->defaultValue(2)
@@ -525,11 +531,10 @@ final class Configuration implements ConfigurationInterface
                     ->info('Total per-sub-call timeout in seconds. Match your slowest handler\'s SLA.')
                 ->end()
                 ->arrayNode('forward_headers')
-                    ->info('Incoming request headers that should be re-sent on each sub-call. Authorization keeps auth in scope. X-Request-Id keeps the correlation id stable across the trace tree.')
+                    ->info('Incoming request headers that should be re-sent on each sub-call. Authorization keeps auth in scope. X-Request-Id keeps the correlation id stable across the trace tree. Cookie is not forwarded by default: with PHP\'s native (locking) session handler the parent holds the session lock and every sub-call blocks on it until timeout. Cookie-session apps add it explicitly, and only with non-locking or read-only sessions.')
                     ->scalarPrototype()->end()
                     ->defaultValue([
                         'Authorization',
-                        'Cookie',
                         'X-Request-Id',
                         'X-Forwarded-For',
                         'X-Forwarded-Proto',
@@ -537,9 +542,24 @@ final class Configuration implements ConfigurationInterface
                         'tracestate',
                     ])
                 ->end()
+            ->end()
+            ->validate()
+                ->ifTrue(static fn (array $v): bool => true === $v['enabled'] && (!\is_string($v['self_url']) || '' === $v['self_url']))
+                ->thenInvalid('parallel_batch.self_url is required when parallel_batch.enabled is true: set it to the absolute http(s) URL of this server\'s RPC endpoint (e.g. "http://127.0.0.1/rpc"). It is not derived from the request because the Host header is client-controlled.')
             ->end();
 
         return $node;
+    }
+
+    private static function isAbsoluteHttpUrl(mixed $value): bool
+    {
+        if (!\is_string($value)) {
+            return false;
+        }
+        $scheme = parse_url($value, \PHP_URL_SCHEME);
+        $host = parse_url($value, \PHP_URL_HOST);
+
+        return \is_string($scheme) && \in_array(strtolower($scheme), ['http', 'https'], true) && \is_string($host) && '' !== $host;
     }
 
     private function openTelemetryNode(): NodeDefinition
@@ -685,8 +705,8 @@ final class Configuration implements ConfigurationInterface
                     ->info('Result format used when neither the X-Mcp-Format header, the ?format query parameter, nor a per-method #[Rpc\\Mcp(format: ...)] sets one. Pick "toon" for LLM consumers — much fewer tokens on list payloads.')
                 ->end()
                 ->booleanNode('apply_rate_limit')
-                    ->defaultFalse()
-                    ->info('Whether to apply #[Rpc\\RateLimit] when a method is called via /mcp/call. Defaults to false because MCP traffic typically comes from a trusted internal agent, not external clients — flip to true if you expose MCP publicly.')
+                    ->defaultTrue()
+                    ->info('Whether to apply #[Rpc\\RateLimit] when a method is called via /mcp/call. On by default, so /mcp/call is limited like /rpc. Set to false only when MCP is reachable exclusively by a trusted internal agent.')
                 ->end()
                 ->booleanNode('expose_all')
                     ->defaultFalse()

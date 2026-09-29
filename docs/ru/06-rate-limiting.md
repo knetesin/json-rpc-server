@@ -38,9 +38,22 @@ HTTP-ответ также несёт `Retry-After: 42` — middleware клие�
 
 | Scope | Ключ счётчика | Use case |
 |---|---|---|
-| `RateLimitScope::User` (default) | Symfony user identifier; `anon` для гостей. | Per-user fairness. |
-| `RateLimitScope::Ip` | Client IP из `RequestStack`; `unknown` если нет. | Тротлинг анонимного трафика. |
+| `RateLimitScope::User` (default) | `user:<identifier>` для аутентифицированных; гости считаются по IP клиента (`guest-ip:<ip>`). | Per-user fairness. |
+| `RateLimitScope::Ip` | Client IP (`ip:<ip>`); `unknown` если нет. | Тротлинг анонимного трафика. |
 | `RateLimitScope::GlobalScope` | Один общий счётчик на метод. | Защита downstream-сервисов. |
+
+Гости никогда не делят bucket с реальным пользователем — даже с тем, чей
+identifier `anon`, — и у каждого гостевого IP свой bucket. После обновления до
+1.7 гости уходят из общего bucket'а `user:anon`, поэтому их счётчики один раз
+начинаются с нуля.
+
+IP клиента — это `getClientIp()` main request'а. Внутри sub-call'а
+параллельного batch'а, который приходит от самого сервера, вместо него берётся
+IP исходного клиента из подписанного fan-out заголовка (см.
+[параллельный batch](./02-methods.md#opt-in-параллельный-batch-через-loopback-fan-out)),
+так что лимиты `Ip` и гостевого `User` и там считаются по клиенту. В своём
+коде читайте его так же — через
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()`.
 
 ```php
 #[Rpc\RateLimit(limit: 100, intervalSec: 60, scope: RateLimitScope::Ip)]
@@ -79,14 +92,15 @@ use Knetesin\JsonRpcServerBundle\Attribute\RateLimitPolicy;
 
 ## MCP-трафик
 
-`#[Rpc\RateLimit]` применяется к `/rpc` вызовам. Для `/mcp/call` — **выключен
-по дефолту**: MCP-трафик обычно идёт от доверенного внутреннего агента (Claude
-Desktop, ваш собственный server-side LLM). Включите для публичного MCP:
+`#[Rpc\RateLimit]` применяется к `/rpc` вызовам и **по дефолту** к
+`/mcp/call` тоже — MCP-endpoint не должен становиться обходом лимитов `/rpc`.
+Выключать стоит только если `/mcp/call` доступен исключительно доверенному
+внутреннему агенту (Claude Desktop, ваш собственный server-side LLM):
 
 ```yaml
 json_rpc_server:
   mcp:
-    apply_rate_limit: true
+    apply_rate_limit: false
 ```
 
 ## Storage
@@ -127,6 +141,12 @@ final readonly class InternalNetworkBypass implements RateLimitBypassInterface
 voter, вернувший `true`, замыкает проверку — метод выполняется как без лимита.
 `false` передаёт решение следующему voter'у и, в итоге, штатному enforcement'у
 атрибута.
+
+При включённом параллельном batch'е `getClientIp()` внутри sub-call'а — это
+loopback-адрес сервера, и allowlist, который его содержит, снимет лимит с
+каждого fan-out вызова. Voter'ам, которые сверяют IP, стоит брать его из
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()` — там он
+возвращает проверенный исходный IP клиента.
 
 Ключевое:
 

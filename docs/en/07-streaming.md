@@ -71,6 +71,12 @@ Response headers always include:
 The bundle also calls `ob_flush()` + `flush()` per row, which means streams
 actually stream under PHP-FPM with default `output_buffering = 4096`.
 
+A streaming method is callable **only** through `/rpc/stream`. On `/rpc` —
+as a single call, a batch item or a parallel-batch sub-call — it is rejected
+before dispatch with `-32600 Invalid Request` (`Method chat.stream is a
+streaming method; call it via the streaming endpoint`); the handler never
+runs. A notification to it gets no response and does not run either.
+
 ## Error handling
 
 The endpoint distinguishes pre-stream errors from mid-stream errors:
@@ -78,13 +84,21 @@ The endpoint distinguishes pre-stream errors from mid-stream errors:
 ### Pre-stream errors
 
 Detected before the iterator starts (parse, method-not-found, batch > 1,
-method-not-streaming). Result: plain JSON-RPC envelope, HTTP 4xx/5xx.
+method-not-streaming, access denied, rate limit, invalid params, …). Result:
+plain JSON-RPC envelope, HTTP 4xx/5xx mapped from `error.code`. This endpoint
+always maps statuses, regardless of `http_status.enabled`:
 
 | Failure | Status |
 |---|---|
 | Parse / Invalid Request | 400 |
-| Method not found | 404 |
+| Invalid params | 400 |
+| Access denied (-32001) | 403 |
+| Method not found / Not found (-32002) | 404 |
+| Request body over the size limit | 413 |
+| Rate limit (-32003) | 429 + `Retry-After` |
 | Internal error | 500 |
+| Other codes in -32099 … -32000 | 400 |
+| Any other code | 500 |
 
 ```json
 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Streaming endpoint accepts only a single request"},"id":1}
@@ -127,7 +141,7 @@ We don't reject this explicitly; just send `id` to be safe.
 |---|---|
 | `#[Rpc\Stream]` + `#[Rpc\Cache]` | **Compile-time error.** A stream is per-call; can't be replayed from a static blob. |
 | `#[Rpc\Stream]` + `#[Rpc\RateLimit]` | Allowed. Rate-limit fires before the iterator starts. |
-| `#[Rpc\Stream]` + `#[Rpc\Mcp]` | Allowed in metadata, but MCP transport doesn't stream — the LLM client receives the final aggregated content. |
+| `#[Rpc\Stream]` + `#[Rpc\Mcp]` | Allowed in metadata, but streaming methods are never exposed over MCP (not with `#[Rpc\Mcp]`, `expose_all` or `whitelist_methods`): `/mcp/tools` omits them and `/mcp/call` answers 404 like for an unknown tool. |
 | `#[Rpc\Stream]` + `#[Rpc\Method(roles: [...])]` | Allowed. Auth fires before the iterator starts. |
 
 ## Performance notes

@@ -47,11 +47,21 @@ final class RpcCacheInvalidator
      * Drops the single cache entry for `(method, params)`. Use this from
      * write-side handlers right after they mutate the underlying data.
      *
+     * For a method with a cache scope the entry also depends on its owner:
+     * without `$scopeKey` the slot of the current caller is purged (their
+     * user / IP / custom scope value); pass the owner's scope key — e.g.
+     * `user:alice`, `guest`, `ip:203.0.113.7`, or what a custom scope's
+     * key() returns — to purge someone else's entry.
+     *
      * @param array<array-key, mixed>|null $params null clears the no-args slot;
      *                                             list/assoc work the same as
      *                                             the actual RPC call would
+     * @param string|null $scopeKey scope key of the entry's owner;
+     *                              null uses the current caller's
+     *
+     * @throws \InvalidArgumentException when `$scopeKey` is given for a method without a cache scope
      */
-    public function purge(string $method, ?array $params = null): bool
+    public function purge(string $method, ?array $params = null, ?string $scopeKey = null): bool
     {
         $meta = $this->safeGet($method);
         if (null === $meta) {
@@ -66,10 +76,11 @@ final class RpcCacheInvalidator
             isNotification: false,
         );
 
-        $ok = $this->cache->purgeKey($meta, $request);
+        $ok = $this->cache->purgeKey($meta, $request, $scopeKey);
         $this->logger->info('RPC cache purge', [
             'mode' => 'key',
             'method' => $method,
+            'scope_key' => $scopeKey,
             'ok' => $ok,
         ]);
 

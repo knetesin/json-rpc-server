@@ -25,8 +25,9 @@ use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
  *   return 'country:' . $this->geoLocator->resolveCountry();
  *   return 'tenant:'  . $this->tenantContext->id();
  *
- * The bundle does no further escaping — produce something safe to embed
- * in a cache key on its own.
+ * Any string works: keys of scoped entries are always hashed. The value is
+ * also what `RpcCacheInvalidator::purge(..., $scopeKey)` expects to purge
+ * another owner's entry.
  */
 interface CacheScope
 {

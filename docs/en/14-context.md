@@ -40,8 +40,13 @@ final readonly class Context
 | `methodName` | The JSON-RPC method name being invoked. |
 | `requestId` | First non-empty: cached `_rpc_request_id` attribute → configured request-id header (default `X-Request-Id`) → freshly generated `bin2hex(random_bytes(8))` (16 hex chars). |
 | `user` | The current `UserInterface` from token storage, or `null` if anonymous / no security-core. |
-| `roles` | List of granted role names from the current token, or empty. |
+| `roles` | Role names of the current token expanded through `security.role_hierarchy` (the token's own roles plus every role they reach), or empty. |
 | `hasRole($r)` | Convenience for `in_array($r, $roles, true)`. |
+
+With `role_hierarchy: { ROLE_ADMIN: [ROLE_USER] }` an admin's
+`$ctx->hasRole('ROLE_USER')` is `true` — the same answer `isGranted('ROLE_USER')`
+gives. Without symfony/security-bundle there is no hierarchy service and
+`roles` holds the token's raw role names.
 
 `requestId` is **cached** back into the HTTP request attributes after first
 resolution. In a batched JSON-RPC call (5 methods in one HTTP request), all 5

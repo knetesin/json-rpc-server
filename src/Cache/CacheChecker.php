@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Knetesin\JsonRpcServerBundle\Cache;
 
 use Knetesin\JsonRpcServerBundle\Attribute\Cache as CacheAttr;
+use Knetesin\JsonRpcServerBundle\Controller\RpcController;
 use Knetesin\JsonRpcServerBundle\Registry\MethodMetadata;
 use Knetesin\JsonRpcServerBundle\Request\RpcRequest;
 use Psr\Cache\CacheItemPoolInterface;
@@ -16,6 +17,15 @@ use Symfony\Component\Cache\Adapter\TagAwareAdapterInterface;
  * is composed from the method name, the optional `scope` contributor's
  * value, and a stable hash of the request params (assoc keys sorted, list
  * order preserved).
+ *
+ * Key forms:
+ *   - `{keyPrefix}.{method}.{paramsSha1}` — readable, for methods without a
+ *     cache scope whose key fits the PSR-6-safe charset and
+ *     `max_readable_key_length`. The fixed prefix and fixed-length suffix
+ *     make it unambiguous even though method names contain dots.
+ *   - `{hashPrefix}.{sha1}` — everything else, including every scoped entry:
+ *     scope keys are arbitrary strings, so a readable join could collide
+ *     across methods.
  *
  * Tagging:
  *   - Every stored item is automatically tagged with `rpc.method.{name}`
@@ -62,6 +72,7 @@ final class CacheChecker
     private readonly int $maxReadableKeyLen;
     private readonly string $keyPrefix;
     private readonly string $hashPrefix;
+    private readonly int $jsonFlags;
 
     public function __construct(
         private readonly CacheItemPoolInterface $defaultPool,
@@ -70,10 +81,13 @@ final class CacheChecker
         ?int $maxReadableKeyLength = null,
         ?string $keyPrefix = null,
         ?string $hashPrefix = null,
+        /* Flags the RPC response is encoded with; results they cannot encode are not cached. */
+        ?int $jsonEncodeFlags = null,
     ) {
         $this->maxReadableKeyLen = $maxReadableKeyLength ?? self::DEFAULT_MAX_READABLE_KEY_LEN;
         $this->keyPrefix = $keyPrefix ?? self::DEFAULT_KEY_PREFIX;
         $this->hashPrefix = $hashPrefix ?? self::DEFAULT_HASH_PREFIX;
+        $this->jsonFlags = ($jsonEncodeFlags ?? RpcController::DEFAULT_JSON_FLAGS) | \JSON_THROW_ON_ERROR;
     }
 
     public function get(MethodMetadata $method, RpcRequest $request): ?CachedResult
@@ -92,7 +106,7 @@ final class CacheChecker
 
     public function set(MethodMetadata $method, RpcRequest $request, mixed $result): void
     {
-        if (null === $method->cache) {
+        if (null === $method->cache || !$this->isEncodable($result)) {
             return;
         }
         $pool = $this->resolvePool($method->cache);
@@ -113,14 +127,23 @@ final class CacheChecker
     /**
      * Purges the exact slot for `(method, request params)`. Returns true if
      * the pool reports the deletion as effective.
+     *
+     * @param string|null $scopeKey the value the method's cache scope produced
+     *                              for the entry's owner (e.g. `user:alice`);
+     *                              null uses the current caller's scope
+     *
+     * @throws \InvalidArgumentException when a scope key is given for a method without a cache scope
      */
-    public function purgeKey(MethodMetadata $method, RpcRequest $request): bool
+    public function purgeKey(MethodMetadata $method, RpcRequest $request, ?string $scopeKey = null): bool
     {
         if (null === $method->cache) {
             return false;
         }
+        if (null !== $scopeKey && null === $method->cache->scope) {
+            throw new \InvalidArgumentException(\sprintf('RPC method %s has no cache scope; purge it without a scope key.', $method->name));
+        }
 
-        return $this->resolvePool($method->cache)->deleteItem($this->buildKey($method, $request));
+        return $this->resolvePool($method->cache)->deleteItem($this->buildKey($method, $request, $scopeKey));
     }
 
     /**
@@ -202,13 +225,22 @@ final class CacheChecker
         return $this->namedPools->get($name);
     }
 
-    private function buildKey(MethodMetadata $method, RpcRequest $request): string
+    private function buildKey(MethodMetadata $method, RpcRequest $request, ?string $scopeKey = null): string
     {
         $cache = $method->cache;
         \assert(null !== $cache);
-        $parts = [$this->keyPrefix, $method->name];
+        $paramsHash = $this->paramsHash($request);
 
-        if (null !== $cache->scope) {
+        if (null === $cache->scope) {
+            $readable = $this->keyPrefix.'.'.$method->name.'.'.$paramsHash;
+            if (1 !== preg_match('#[^A-Za-z0-9_.\-]#', $readable) && \strlen($readable) <= $this->maxReadableKeyLen) {
+                return $readable;
+            }
+
+            return $this->hashedKey([$this->keyPrefix, $method->name, $paramsHash]);
+        }
+
+        if (null === $scopeKey) {
             if (!$this->scopes->has($cache->scope)) {
                 throw new \LogicException(\sprintf('Cache scope "%s" referenced by method %s is not registered as a service.', $cache->scope, $method->name));
             }
@@ -216,12 +248,34 @@ final class CacheChecker
             if (!$scope instanceof CacheScope) {
                 throw new \LogicException(\sprintf('"%s" must implement %s.', $cache->scope, CacheScope::class));
             }
-            $parts[] = $scope->key($method, $request);
+            $scopeKey = $scope->key($method, $request);
         }
 
-        $parts[] = $this->paramsHash($request);
+        return $this->hashedKey([$this->keyPrefix, $method->name, $scopeKey, $paramsHash]);
+    }
 
-        return $this->safeKey(implode('|', $parts));
+    /**
+     * @param list<string> $parts
+     */
+    private function hashedKey(array $parts): string
+    {
+        // serialize() is length-prefixed, so no part can spill into its neighbour.
+        return $this->hashPrefix.'.'.sha1(serialize($parts));
+    }
+
+    /**
+     * The controller answers -32603 for a result it cannot encode; caching it
+     * would replay that failure on every hit until the TTL expires.
+     */
+    private function isEncodable(mixed $result): bool
+    {
+        try {
+            json_encode($result, $this->jsonFlags);
+        } catch (\JsonException) {
+            return false;
+        }
+
+        return true;
     }
 
     private function paramsHash(RpcRequest $request): string
@@ -242,14 +296,5 @@ final class CacheChecker
         ksort($value);
 
         return array_map(fn ($v) => $this->stableSort($v, \is_array($v) && array_is_list($v)), $value);
-    }
-
-    private function safeKey(string $raw): string
-    {
-        if (1 !== preg_match('#[^A-Za-z0-9_.\-]#', $raw) && \strlen($raw) <= $this->maxReadableKeyLen) {
-            return $raw;
-        }
-
-        return $this->hashPrefix.'.'.sha1($raw);
     }
 }

@@ -11,10 +11,13 @@ use Knetesin\JsonRpcServerBundle\Exception\RequestTooLargeException;
 use Knetesin\JsonRpcServerBundle\Exception\RpcException;
 
 /**
- * Maps JSON-RPC failures to HTTP status codes for {@see \Knetesin\JsonRpcServerBundle\Controller\RpcController}.
+ * Maps JSON-RPC failures to HTTP status codes for {@see \Knetesin\JsonRpcServerBundle\Controller\RpcController}
+ * and {@see \Knetesin\JsonRpcServerBundle\Controller\StreamController}.
  *
- * When {@code mapHttpStatus} is false (default), only {@code 413} is elevated for oversized
- * bodies; every other error stays {@code 200} with the canonical {@code error.code} in the body.
+ * When {@code mapHttpStatus} is false (default), only a {@see RequestTooLargeException} is elevated
+ * to {@code 413}; every other error stays {@code 200} with the canonical {@code error.code} in the body.
+ * Envelopes are mapped by {@code error.code} alone, so they never yield {@code 413}: the controller
+ * decides that from the exception when nothing ran.
  */
 final class RpcHttpStatusResolver
 {
@@ -32,16 +35,14 @@ final class RpcHttpStatusResolver
      */
     public function statusForEnvelope(array $envelope, bool $mapHttpStatus): int
     {
-        if (!isset($envelope['error']) || !\is_array($envelope['error'])) {
+        if (!$mapHttpStatus || !isset($envelope['error']) || !\is_array($envelope['error'])) {
             return 200;
         }
 
-        $http = $this->httpFromEnvelope($envelope);
-        if (413 === $http || $mapHttpStatus) {
-            return $http;
-        }
+        /** @var array{code?: int|string} $error */
+        $error = $envelope['error'];
 
-        return 200;
+        return $this->httpFromRpcCode((int) ($error['code'] ?? 0));
     }
 
     /**
@@ -57,30 +58,13 @@ final class RpcHttpStatusResolver
         return $status;
     }
 
-    /**
-     * @param array<string, mixed> $envelope
-     */
-    private function httpFromEnvelope(array $envelope): int
-    {
-        /** @var array{code?: int|string, message?: string} $error */
-        $error = $envelope['error'];
-        $code = (int) ($error['code'] ?? 0);
-        $message = (string) ($error['message'] ?? '');
-
-        if (RpcException::INVALID_REQUEST === $code && str_contains($message, 'too large')) {
-            return 413;
-        }
-
-        return $this->httpFromRpcCode($code);
-    }
-
     private function httpFromRpcCode(int $code): int
     {
         return match ($code) {
             RpcException::PARSE_ERROR,
             RpcException::INVALID_REQUEST,
-            RpcException::INVALID_PARAMS,
-            AccessDeniedException::DEFAULT_CODE => 400,
+            RpcException::INVALID_PARAMS => 400,
+            AccessDeniedException::DEFAULT_CODE => 403,
             RpcException::METHOD_NOT_FOUND,
             NotFoundException::DEFAULT_CODE => 404,
             RateLimitExceededException::DEFAULT_CODE => 429,

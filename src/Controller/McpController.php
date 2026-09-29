@@ -49,8 +49,8 @@ use Symfony\Component\HttpFoundation\Request;
  *   4. `json_rpc_server.mcp.default_format` bundle config
  *
  * If the method's handler implements McpResultTransformer, that hook runs
- * after `__invoke` but before normalization — useful for stripping internal
- * fields not meant for the LLM.
+ * after the Dispatcher has normalized the result — useful for stripping
+ * internal fields not meant for the LLM.
  */
 final class McpController
 {
@@ -67,7 +67,7 @@ final class McpController
         private readonly Dispatcher $dispatcher,
         private readonly McpResultFormatter $formatter,
         private readonly LoggerInterface $logger,
-        private readonly bool $applyRateLimit = false,
+        private readonly bool $applyRateLimit = true,
         private readonly int $defaultMaxRequestSize = 0,
         private readonly int $maxJsonDepth = 32,
         ?int $jsonEncodeFlags = null,
@@ -106,7 +106,7 @@ final class McpController
             // Dispatcher already normalizes — transformer sees plain data,
             // never a raw DTO. See {@see McpResultTransformer} for the contract.
             $normalized = $this->dispatcher->call($envelope, applyRateLimit: $this->applyRateLimit);
-            $normalized = $this->maybeTransform($name, $normalized);
+            $normalized = $this->maybeTransform($meta, $normalized);
             $content = $this->formatter->format($normalized, $format, $meta);
 
             $response = ['content' => $content];
@@ -163,7 +163,7 @@ final class McpController
     }
 
     /**
-     * Mirrors RpcController::checkPerMethodLimit. The per-method limit is
+     * Mirrors the size check in RpcController::preflight. The per-method limit is
      * a tool-specific contract — without this check, a method that declares
      * #[Rpc\MaxRequestSize(1024)] is silently uncapped on /mcp/call.
      */
@@ -204,14 +204,20 @@ final class McpController
         return $method->mcpFormat;
     }
 
-    private function maybeTransform(string $name, mixed $result): mixed
+    private function maybeTransform(MethodMetadata $meta, mixed $result): mixed
     {
-        $handler = $this->dispatcher->handler($name);
-        if ($handler instanceof McpResultTransformer) {
-            return $handler->transformMcpResult($result);
+        // Handlers are non-shared by default: check the class first so only
+        // transformers get an instance built for this hook.
+        if (!is_a($meta->serviceClass, McpResultTransformer::class, true)) {
+            return $result;
         }
 
-        return $result;
+        $handler = $this->dispatcher->handler($meta->name);
+        if (!$handler instanceof McpResultTransformer) {
+            return $result;
+        }
+
+        return $handler->transformMcpResult($result);
     }
 
     private function errorResponse(RpcException $e, int $status): JsonResponse

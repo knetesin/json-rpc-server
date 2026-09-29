@@ -130,7 +130,8 @@ final class MethodGuardTest extends KernelTestCase
         $response = $this->send($kernel, '/rpc/stream', ['method' => 'guard.groupFeed', 'params' => ['groupId' => 4], 'id' => 9]);
 
         $this->assertNotInstanceOf(StreamedResponse::class, $response);
-        $this->assertSame(400, $response->getStatusCode());
+        // -32002 (NotFoundException) maps to 404 on the stream endpoint.
+        $this->assertSame(404, $response->getStatusCode());
         $payload = $this->decodeJsonResponse($response);
         $this->assertSame('2.0', $payload['jsonrpc']);
         $this->assertSame(9, $payload['id']);

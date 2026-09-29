@@ -9,6 +9,10 @@ use Knetesin\JsonRpcServerBundle\Security\SecurityUserResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Core\Role\RoleHierarchy;
+use Symfony\Component\Security\Core\User\InMemoryUser;
 
 final class ContextFactoryTest extends TestCase
 {
@@ -55,6 +59,41 @@ final class ContextFactoryTest extends TestCase
 
         // Critical: every item in a JSON-RPC batch shares one requestId.
         $this->assertSame($first->requestId, $second->requestId);
+    }
+
+    public function testRolesAreExpandedThroughRoleHierarchy(): void
+    {
+        $factory = new ContextFactory(
+            new RequestStack(),
+            $this->usersWithRoles(['ROLE_ADMIN']),
+            roleHierarchy: new RoleHierarchy(['ROLE_ADMIN' => ['ROLE_USER']]),
+        );
+
+        $ctx = $factory->create('user.update');
+
+        $this->assertSame(['ROLE_ADMIN', 'ROLE_USER'], $ctx->roles);
+        $this->assertTrue($ctx->hasRole('ROLE_USER'));
+    }
+
+    public function testRawRolesWithoutRoleHierarchy(): void
+    {
+        $factory = new ContextFactory(new RequestStack(), $this->usersWithRoles(['ROLE_ADMIN']));
+
+        $ctx = $factory->create('user.update');
+
+        $this->assertSame(['ROLE_ADMIN'], $ctx->roles);
+        $this->assertFalse($ctx->hasRole('ROLE_USER'));
+    }
+
+    /**
+     * @param list<string> $roles
+     */
+    private function usersWithRoles(array $roles): SecurityUserResolver
+    {
+        $storage = new TokenStorage();
+        $storage->setToken(new UsernamePasswordToken(new InMemoryUser('admin', null, $roles), 'main', $roles));
+
+        return new SecurityUserResolver($storage);
     }
 
     private function factory(RequestStack $stack, string $header = 'X-Request-Id'): ContextFactory

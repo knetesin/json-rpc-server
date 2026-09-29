@@ -30,6 +30,8 @@ final class OpenRpcDocumentBuilder
     public function __construct(
         private readonly MethodRegistry $registry,
         private readonly JsonSchemaBuilder $schemaBuilder,
+        /** When false, methods carry no `x-rpc-roles` / `x-rpc-roles-match` (mirrors `security.expose_role_names`). */
+        private readonly bool $exposeRoleNames = true,
     ) {
     }
 
@@ -74,7 +76,7 @@ final class OpenRpcDocumentBuilder
             // inside `x-deprecation-reason` so consumers can still surface it.
             $entry['x-deprecation-reason'] = $meta->deprecated;
         }
-        if ([] !== $meta->roles) {
+        if ($this->exposeRoleNames && [] !== $meta->roles) {
             // Custom extension. OpenRPC clients ignore unknown `x-` fields;
             // any auth-aware doc renderer (or our own SDK generator later)
             // can pick this up to gate methods behind roles.

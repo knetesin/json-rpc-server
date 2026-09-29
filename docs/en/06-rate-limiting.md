@@ -38,9 +38,21 @@ Where the counter is partitioned:
 
 | Scope | Counter key | Use case |
 |---|---|---|
-| `RateLimitScope::User` (default) | Symfony user identifier; `anon` for guests. | Protect per-user fairness. |
-| `RateLimitScope::Ip` | Client IP from `RequestStack`; `unknown` if none. | Throttle anonymous traffic. |
+| `RateLimitScope::User` (default) | `user:<identifier>` for authenticated users; guests are counted per client IP (`guest-ip:<ip>`). | Protect per-user fairness. |
+| `RateLimitScope::Ip` | Client IP (`ip:<ip>`); `unknown` if none. | Throttle anonymous traffic. |
 | `RateLimitScope::GlobalScope` | One shared counter for the method. | Protect downstream services. |
+
+Guests never share a bucket with a real user — not even one whose identifier is
+`anon` — and each guest IP has its own bucket. Upgrading to 1.7 moves guests
+off the shared `user:anon` bucket, so their counters start from zero once.
+
+The client IP is the main request's `getClientIp()`. Inside a parallel-batch
+sub-call, which reaches the app from the server itself, it is the original
+client's IP from the signed fan-out header instead (see
+[parallel batches](./02-methods.md#opt-in-parallel-batches-via-loopback-fan-out)),
+so `Ip` and guest `User` limits keep counting per client there too. Read it
+the same way in your own code via
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()`.
 
 ```php
 #[Rpc\RateLimit(limit: 100, intervalSec: 60, scope: RateLimitScope::Ip)]
@@ -76,14 +88,15 @@ use Knetesin\JsonRpcServerBundle\Attribute\RateLimitPolicy;
 
 ## MCP traffic
 
-`#[Rpc\RateLimit]` applies to `/rpc` calls. For `/mcp/call` it's **off by
-default** — MCP traffic typically comes from a trusted internal agent (Claude
-Desktop, your own server-side LLM). Flip on for public MCP exposure:
+`#[Rpc\RateLimit]` applies to `/rpc` calls and, **by default**, to
+`/mcp/call` too — an MCP endpoint must not become a way around the limits of
+`/rpc`. Only when `/mcp/call` is reachable exclusively by a trusted internal
+agent (Claude Desktop, your own server-side LLM) can you switch it off:
 
 ```yaml
 json_rpc_server:
   mcp:
-    apply_rate_limit: true
+    apply_rate_limit: false
 ```
 
 ## Storage
@@ -124,6 +137,12 @@ final readonly class InternalNetworkBypass implements RateLimitBypassInterface
 The first voter to return `true` short-circuits the check — the method runs as
 if it had no rate limit. Returning `false` defers to the next voter and,
 ultimately, to the attribute's normal enforcement.
+
+With parallel batch enabled, `getClientIp()` inside a sub-call is the server's
+loopback address — an allowlist that contains it would exempt every fanned-out
+call. Voters that match on IP should take it from
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()`, which
+returns the verified original client IP there.
 
 Key points:
 

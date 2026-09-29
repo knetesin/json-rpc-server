@@ -90,6 +90,12 @@ final class MethodCompilerPass implements CompilerPassInterface
                 continue;
             }
 
+            // Method names become array keys of MethodRegistry's argument, and the
+            // container resolves %parameter% placeholders in array keys too.
+            if (str_contains($methodAttr->name, '%')) {
+                throw new \LogicException(\sprintf('RPC method name "%s" (%s) must not contain "%%": the container would read it as a %%parameter%% placeholder.', $methodAttr->name, $class));
+            }
+
             $streamAttr = $this->firstAttribute($reflection, RpcStream::class);
             $mcpAttr = $this->firstAttribute($reflection, RpcMcp::class);
             $rateLimitAttr = $this->firstAttribute($reflection, RpcRateLimit::class);

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Knetesin\JsonRpcServerBundle\Tests\Functional;
 
 use Knetesin\JsonRpcServerBundle\Cache\RpcCacheInvalidator;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\CacheEncoding\CachedLabel;
+use Knetesin\JsonRpcServerBundle\Tests\Fixtures\CachePurge\CounterUser;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterGlobal;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterIp;
 use Knetesin\JsonRpcServerBundle\Tests\Fixtures\Methods\CounterParam;
@@ -21,7 +23,7 @@ final class CacheTest extends KernelTestCase
         // Reset them so each scenario starts from zero — also resets any
         // residual cache entries from earlier tests when boot() creates a
         // new container.
-        foreach ([CounterGlobal::class, CounterIp::class, CounterParam::class, CounterVary::class] as $cls) {
+        foreach ([CounterGlobal::class, CounterIp::class, CounterParam::class, CounterVary::class, CounterUser::class, CachedLabel::class] as $cls) {
             $reflection = new \ReflectionClass($cls);
             foreach ($reflection->getProperties(\ReflectionProperty::IS_STATIC) as $prop) {
                 $prop->setValue(null, $prop->getDefaultValue());
@@ -131,6 +133,80 @@ final class CacheTest extends KernelTestCase
         $this->assertSame(2, $afterPurge['result']['n'], 'handler must rerun after purge');
     }
 
+    public function testPurgeWithoutScopeKeyTargetsTheCallersOwnSlot(): void
+    {
+        $kernel = $this->boot();
+        $seed = $this->callFromIp($kernel, 'cache.counter_ip', '10.0.0.1');
+
+        // Outside a request the caller's own IP scope is "ip:unknown", not the client's slot.
+        $this->invalidator($kernel)->purge('cache.counter_ip');
+        $afterPurge = $this->callFromIp($kernel, 'cache.counter_ip', '10.0.0.1');
+
+        $this->assertSame(1, $seed['result']['n']);
+        $this->assertSame(1, $afterPurge['result']['n']);
+    }
+
+    public function testPurgeWithScopeKeyTargetsAnotherCallersIpEntry(): void
+    {
+        $kernel = $this->boot();
+        $this->assertSame(1, $this->callFromIp($kernel, 'cache.counter_ip', '10.0.0.1')['result']['n']);
+        $this->assertSame(2, $this->callFromIp($kernel, 'cache.counter_ip', '10.0.0.2')['result']['n']);
+
+        $this->invalidator($kernel)->purge('cache.counter_ip', null, 'ip:10.0.0.1');
+
+        $this->assertSame(3, $this->callFromIp($kernel, 'cache.counter_ip', '10.0.0.1')['result']['n']);
+        $this->assertSame(2, $this->callFromIp($kernel, 'cache.counter_ip', '10.0.0.2')['result']['n'], 'other owners keep their entry');
+    }
+
+    public function testPurgeWithScopeKeyTargetsAnotherUsersEntry(): void
+    {
+        $kernel = $this->boot([], ['CachePurge']);
+        $seed = $this->callAsUser($kernel, 'cache.counter_user');
+        $hit = $this->callAsUser($kernel, 'cache.counter_user');
+
+        // TestAuthenticationListener authenticates every X-Test-Roles caller as "tester".
+        $this->invalidator($kernel)->purge('cache.counter_user', null, 'user:tester');
+        $afterPurge = $this->callAsUser($kernel, 'cache.counter_user');
+
+        $this->assertSame(1, $seed['result']['n']);
+        $this->assertSame(1, $hit['result']['n']);
+        $this->assertSame(2, $afterPurge['result']['n']);
+    }
+
+    public function testPurgeRejectsScopeKeyForMethodWithoutScope(): void
+    {
+        $kernel = $this->boot();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('RPC method cache.counter_param has no cache scope');
+
+        $this->invalidator($kernel)->purge('cache.counter_param', ['k' => 'x'], 'user:tester');
+    }
+
+    public function testUnencodableResultIsNotCached(): void
+    {
+        $kernel = $this->boot([], ['CacheEncoding']);
+        CachedLabel::$broken = true;
+        $this->assertSame(-32603, $this->call($kernel, 'cache.label')['error']['code']);
+
+        CachedLabel::$broken = false;
+        $this->assertSame('café', $this->call($kernel, 'cache.label')['result']);
+    }
+
+    public function testCacheUsesConfiguredEncodeFlags(): void
+    {
+        // With JSON_INVALID_UTF8_SUBSTITUTE the broken value is encodable, so it
+        // gets cached and is served even after the source is fixed.
+        $kernel = $this->boot(['json' => ['encode_flags' => \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_INVALID_UTF8_SUBSTITUTE]], ['CacheEncoding']);
+        CachedLabel::$broken = true;
+        $miss = $this->call($kernel, 'cache.label');
+        $this->assertSame("caf\u{FFFD}", $miss['result']);
+
+        CachedLabel::$broken = false;
+        $hit = $this->call($kernel, 'cache.label');
+        $this->assertSame("caf\u{FFFD}", $hit['result']);
+    }
+
     public function testInvalidatorPurgeMethodNeedsTagAwarePool(): void
     {
         $kernel = $this->boot();
@@ -201,6 +277,25 @@ final class CacheTest extends KernelTestCase
         $this->assertSame(200, $response->getStatusCode(), $this->responseContent($response));
 
         return $this->decodeJsonResponse($response);
+    }
+
+    private function invalidator(\Symfony\Component\HttpKernel\KernelInterface $kernel): RpcCacheInvalidator
+    {
+        $invalidator = $kernel->getContainer()->get(RpcCacheInvalidator::class);
+        $this->assertInstanceOf(RpcCacheInvalidator::class, $invalidator);
+
+        return $invalidator;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function callAsUser(\Symfony\Component\HttpKernel\KernelInterface $kernel, string $method): array
+    {
+        $body = $this->jsonEncode(['jsonrpc' => '2.0', 'method' => $method, 'id' => 1]);
+        $request = Request::create('/rpc', 'POST', server: ['CONTENT_TYPE' => 'application/json', 'HTTP_X_TEST_ROLES' => 'ROLE_USER'], content: $body);
+
+        return $this->decodeJsonResponse($kernel->handle($request));
     }
 
     /**

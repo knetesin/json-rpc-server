@@ -86,6 +86,9 @@ json_rpc_server:
 Теперь сообщение просто `Access denied`. HTTP body всё ещё несёт
 `error.code: -32001`, просто без утечки.
 
+Тот же флаг убирает role identifier'ы и из discovery: записи `/mcp/tools` не
+содержат `roles`, а OpenRPC-документ — `x-rpc-roles` / `x-rpc-roles-match`.
+
 ## Method guards
 
 Роли выражают статичные правила доступа ("есть `ROLE_ADMIN`"). Некоторым
@@ -144,7 +147,8 @@ Roles → rate limit → резолв аргументов + валидация 
 lookup → handler. Guard'ы выполняются на каждом пути диспатча: одиночный
 вызов, каждый элемент batch'а, notifications (отказ не даёт ответа — так
 требует JSON-RPC для notifications), streaming (до вызова handler'а/итератора;
-pre-stream отказ возвращает обычный HTTP 400 JSON envelope — см.
+pre-stream отказ возвращает обычный JSON-RPC envelope с HTTP-статусом по его
+коду (например 403 для -32001, 404 для -32002) — см.
 [Стриминг](./07-streaming.md)), MCP `tools/call` (HTTP 200 с
 `isError: true`, по конвенции MCP), и sub-вызовы параллельного batch'а (каждый
 идёт через тот же диспатчер). Guard'ы выполняются до cache lookup, поэтому
@@ -154,11 +158,17 @@ pre-stream отказ возвращает обычный HTTP 400 JSON envelope
 При включённом параллельном batch'е каждый элемент выполняется как внутренний
 HTTP sub-request обратно в то же приложение. Guard'ы выполняются и там, но
 HTTP-запрос, который они видят через `RequestStack`, несёт только заголовки из
-`parallel_batch.forward_headers`, а соединение приходит от самого сервера,
-поэтому client IP — это IP сервера, а если приложение доверяет своему адресу
-как proxy — то, что написано в пересланном `X-Forwarded-For`. Принимайте
-решения в guard'ах по security token и RPC-аргументам, а не по произвольным
-заголовкам или client IP.
+`parallel_batch.forward_headers`, а соединение приходит от самого сервера:
+`Request::getClientIp()` возвращает адрес сервера, а если приложение доверяет
+своему адресу как proxy — то, что написано в пересланном `X-Forwarded-For`.
+Исходный IP клиента едет в подписанном внутреннем заголовке (см.
+[параллельный batch](./02-methods.md#opt-in-параллельный-batch-через-loopback-fan-out));
+встроенные `RateLimitScope::Ip`, гостевой `RateLimitScope::User` и `IpScope`
+уже его используют, а guard'у, которому нужен IP клиента, стоит брать его из
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()` — в
+sub-call'е он возвращает проверенный исходный IP, иначе `getClientIp()`.
+В остальном принимайте решения в guard'ах по security token и RPC-аргументам,
+а не по произвольным заголовкам.
 
 ### Ошибки
 
@@ -168,7 +178,8 @@ HTTP-запрос, который они видят через `RequestStack`, �
 `MethodInvocationFailedEvent`. При `http_status.enabled` HTTP-статус следует
 за кодом ошибки — см. [Ошибки](./10-errors.md#http-статусы); например,
 дефолтный код `NotFoundException` -32002 маппится на 404, дефолтный код
-`AccessDeniedException` -32001 — на 400.
+`AccessDeniedException` -32001 — на 403. Streaming endpoint маппит pre-stream
+ошибки так же даже при выключенном `http_status.enabled`.
 
 ### Чтение атрибутов handler'а
 
@@ -281,6 +292,10 @@ public function __invoke(MyRequest $req, Context $ctx): array
 final class GetMyProfile { /* … */ }
 ```
 
+Гости делят один слот `guest`, который не пересекается ни с одним слотом
+`user:<identifier>`, — пользователь с identifier'ом `anon` или `guest` никогда
+не делит записи с анонимными вызовами.
+
 См. [Кэширование](./05-caching.md#встроенные-scope-ы).
 
 ## Rate limiting по пользователю
@@ -293,8 +308,12 @@ final class GetMyProfile { /* … */ }
 final class HeavyReport { /* … */ }
 ```
 
-Анонимные шарят слот `anon` — обычно это нужное поведение (троттлить аноним
-жестко).
+Аутентифицированные пользователи получают по bucket'у на каждого
+(`user:<identifier>`). Гости лимитируются **по IP клиента** (`guest-ip:<ip>`):
+один анонимный клиент не выедает лимит всем остальным гостям, и ни один
+реальный пользователь не делит bucket с гостями. Внутри sub-call'ов
+параллельного batch'а это IP исходного клиента из подписанного fan-out
+заголовка.
 
 ## Security-чеклист
 
@@ -303,4 +322,5 @@ final class HeavyReport { /* … */ }
 - ✅ `expose_role_names: false` в проде
 - ✅ Rate-limit анонимных endpoint'ов (`scope: Ip`)
 - ✅ `max_request_size` — ваш максимум приемлемого payload'а (default 1 MB)
-- ✅ MCP-трафик — если выставлен наружу, `mcp.apply_rate_limit: true`
+- ✅ MCP-трафик — оставьте `mcp.apply_rate_limit: true` (default); `false`
+  только если `/mcp/call` доступен исключительно доверенному внутреннему агенту

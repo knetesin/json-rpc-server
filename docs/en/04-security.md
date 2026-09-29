@@ -87,6 +87,10 @@ json_rpc_server:
 Now the message is just `Access denied`. The HTTP body still carries
 `error.code: -32001`, just without the leak.
 
+The same flag also removes role identifiers from discovery: `/mcp/tools`
+entries carry no `roles`, and the OpenRPC document carries no `x-rpc-roles` /
+`x-rpc-roles-match`.
+
 ## Method guards
 
 Roles express static access rules ("has `ROLE_ADMIN`"). Some rules need the
@@ -143,7 +147,8 @@ Roles → rate limit → argument resolution + validation → **guards** → cac
 lookup → handler. Guards run on every dispatch path: single calls, every
 batch item, notifications (a denial produces no response — the JSON-RPC rule
 for notifications), streaming (before the handler/iterator is invoked; a
-pre-stream denial returns the usual HTTP 400 JSON envelope — see
+pre-stream denial returns the usual JSON-RPC envelope with the HTTP status
+mapped from its code (e.g. 403 for -32001, 404 for -32002) — see
 [Streaming](./07-streaming.md)), MCP `tools/call` (HTTP 200 with
 `isError: true`, per MCP convention), and parallel-batch sub-calls (each
 sub-call goes through the same dispatcher). Guards run before the cache
@@ -154,10 +159,16 @@ With parallel batch enabled, each item runs as an internal HTTP sub-request
 back to the same app. Guards run there too, but the HTTP request they see via
 `RequestStack` carries only the headers listed in
 `parallel_batch.forward_headers`, and the connection comes from the server
-itself, so the client IP is the server's own — or, if the app trusts its own
-address as a proxy, whatever the forwarded `X-Forwarded-For` says. Base guard
-decisions on the security token and the RPC arguments, not on arbitrary
-headers or the client IP.
+itself: `Request::getClientIp()` returns the server's own address — or, if
+the app trusts its own address as a proxy, whatever the forwarded
+`X-Forwarded-For` says. The original client IP travels in a signed internal
+header (see [parallel batches](./02-methods.md#opt-in-parallel-batches-via-loopback-fan-out));
+the bundle's `RateLimitScope::Ip`, guest `RateLimitScope::User` and `IpScope`
+already use it, and a guard that needs the client IP should read it from
+`Knetesin\JsonRpcServerBundle\Http\ClientIpResolver::clientIp()`, which
+returns the verified original IP in a sub-call and `getClientIp()` otherwise.
+Otherwise base guard decisions on the security token and the RPC arguments,
+not on arbitrary headers.
 
 ### Errors
 
@@ -167,7 +178,8 @@ message and `rpcData()`. Any other exception becomes `-32603 Internal error`
 `http_status.enabled`, the HTTP status follows the error code — see
 [Errors](./10-errors.md#http-statuses); e.g. `NotFoundException`'s
 default code -32002 maps to 404, `AccessDeniedException`'s default -32001
-maps to 400.
+maps to 403. The streaming endpoint maps pre-stream errors this way even when
+`http_status.enabled` is off.
 
 ### Reading the handler's attributes
 
@@ -280,6 +292,10 @@ entries are keyed per user identifier:
 final class GetMyProfile { /* … */ }
 ```
 
+Guests share a single `guest` slot, keyed apart from every `user:<identifier>`
+slot — a user whose identifier happens to be `anon` or `guest` never shares
+entries with anonymous callers.
+
 See [Caching](./05-caching.md#built-in-scopes).
 
 ## Rate limiting by user
@@ -292,8 +308,11 @@ See [Caching](./05-caching.md#built-in-scopes).
 final class HeavyReport { /* … */ }
 ```
 
-Anonymous callers all share the same `anon` slot — typically that's what you
-want (rate-limit anonymous traffic harshly).
+Authenticated users get one bucket each (`user:<identifier>`). Guests are
+limited **per client IP** (`guest-ip:<ip>`), so one anonymous client cannot
+exhaust the limit for every other guest, and no real user shares a bucket with
+guests. Inside parallel-batch sub-calls the IP is the original client's,
+taken from the signed fan-out header.
 
 ## Security checklist
 
@@ -302,4 +321,5 @@ want (rate-limit anonymous traffic harshly).
 - ✅ `expose_role_names: false` in production
 - ✅ Rate limit anonymous endpoints (`scope: Ip`)
 - ✅ `max_request_size` set to your maximum acceptable payload (default 1 MB)
-- ✅ MCP traffic — if exposed externally, `mcp.apply_rate_limit: true`
+- ✅ MCP traffic — keep `mcp.apply_rate_limit: true` (the default); set it to
+  `false` only when `/mcp/call` is reachable exclusively by a trusted internal agent

@@ -40,8 +40,13 @@ final readonly class Context
 | `methodName` | Имя JSON-RPC метода, который вызывается. |
 | `requestId` | Первое непустое: кэш `_rpc_request_id` в атрибутах → сконфигурированный request-id header (дефолт `X-Request-Id`) → свежесгенерированный `bin2hex(random_bytes(8))` (16 hex символов). |
 | `user` | Текущий `UserInterface` из token storage, или `null` если anonymous / нет security-core. |
-| `roles` | Список granted role-имён из текущего токена, или пустой. |
+| `roles` | Role-имена текущего токена, развёрнутые через `security.role_hierarchy` (собственные роли токена плюс все достижимые из них), или пустой. |
 | `hasRole($r)` | Удобство для `in_array($r, $roles, true)`. |
+
+С `role_hierarchy: { ROLE_ADMIN: [ROLE_USER] }` у админа
+`$ctx->hasRole('ROLE_USER')` — `true`, тот же ответ, что даёт
+`isGranted('ROLE_USER')`. Без symfony/security-bundle сервиса иерархии нет, и в
+`roles` лежат сырые role-имена токена.
 
 `requestId` **кэшируется** обратно в атрибуты HTTP-запроса после первой
 резолюции. В batched JSON-RPC вызове (5 методов в одном HTTP-запросе), все 5

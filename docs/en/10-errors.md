@@ -151,14 +151,23 @@ with an error in the body. The bundle leans pragmatic:
 | Invalid request | 200 | 400 | 400 | 400 |
 | Method not found | 200 | 404 | 404 | 404 |
 | Invalid params | 200 | 400 | 400 | 200 (MCP convention) |
-| Access denied | 200 | 400 | 400 | 200 (MCP convention) |
-| Rate limit | 200 | 429 | 400 | 200 (MCP convention) |
+| Access denied (-32001) | 200 | 403 | 403 | 200 (MCP convention) |
+| Not found (-32002) | 200 | 404 | 404 | 200 (MCP convention) |
+| Rate limit | 200 | 429 | 429 | 200 (MCP convention) |
 | Internal error | 200 | 500 | 500 | 200 (MCP convention) |
 | Request too large | **413** | **413** | **413** | **413** |
 
-On `/rpc`, oversized payloads always return **413** — even when
-`http_status.enabled` is `false`. That lets monitoring and load balancers drop
-oversize traffic without parsing JSON.
+Other codes in the server-defined range (-32099 … -32000) map to 400, any
+other code to 500. `/rpc/stream` always maps pre-stream errors this way,
+whatever `http_status.enabled` says, and adds `Retry-After` to a rate-limit
+rejection.
+
+On `/rpc`, **413** means nothing ran, and it is returned even when
+`http_status.enabled` is `false`: either the body exceeds the parser cap (the
+largest of `max_request_size` and every `#[Rpc\MaxRequestSize]`), or a single
+(non-batch) request exceeds its method's limit. That lets monitoring and load
+balancers drop oversize traffic without parsing JSON. A batch is never
+answered with 413 once it has been parsed — see below.
 
 For every other failure, the JSON-RPC body's `error.code` is the canonical
 classifier. Optional HTTP mapping is dev-friendly (browser, `curl -f`, proxies)
@@ -173,6 +182,29 @@ json_rpc_server:
 
 Batch responses use the **highest** HTTP status among items (e.g. one 404 and
 one 200 → 404). Successful items still carry `result` in the body.
+
+## Per-item errors in a batch
+
+A batch item that cannot run gets its own error entry; the other items still
+run and the HTTP status follows the rules above (200 by default):
+
+- **Invalid item** (not an object, missing `jsonrpc: "2.0"` or `method`, bad
+  `id`/`params` type) → `{"jsonrpc":"2.0","error":{"code":-32600,...},"id":null}`.
+  Such an item always gets an entry, because it cannot be recognized as a
+  notification. `[1,2,3]` yields three -32600 errors.
+- **Item over its method's `MaxRequestSize`** → -32600 with the item's `id`.
+  The item is measured by its own size (its re-encoded JSON envelope), not by
+  the whole batch body; the whole body is still bounded by the parser cap.
+- **Streaming method** (`#[Rpc\Stream]`) → -32600 pointing at the streaming
+  endpoint.
+
+Rejected notifications (valid shape, no `id`) get no entry. Rejected items
+never reach the handler or the parallel-batch executor.
+`BatchDispatchedEvent::$batchSize` counts every entry of the request array,
+including rejected ones.
+
+A payload-level problem is still answered with a single error object: invalid
+JSON (-32700), an empty batch `[]`, or an invalid non-batch request (-32600).
 
 ## Internal errors
 
